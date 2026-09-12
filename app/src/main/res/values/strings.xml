@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GymFitness Timer</string>
+
+    <string name="nav_home">Inicio</string>
+    <string name="nav_workouts">Entrenamientos</string>
+    <string name="nav_stats">Estadística</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <string name="tab_exercises">Ejercicios</string>
+    <string name="tab_plans">Planes</string>
+
+    <string name="overview">Visión general</string>
+    <string name="last_7_days">Últimos 7 días</string>
+    <string name="goals">Objetivos</string>
+    <string name="quick_start">Inicio rápido</string>
+    <string name="new_workout">Nuevo entrenamiento</string>
+    <string name="new_plan">Nuevo plan</string>
+
+    <string name="save">Guardar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Eliminar</string>
+    <string name="name">Nombre</string>
+    <string name="tags">Etiquetas</string>
+    <string name="notes">Notas</string>
+    <string name="media">Media</string>
+    <string name="custom_intervals">Intervalos personalizados</string>
+    <string name="rounds">Rondas</string>
+    <string name="intervals">Intervalos</string>
+    <string name="add_interval">Añadir intervalo</string>
+    <string name="prepare">Preparar</string>
+    <string name="work">Ejercitar</string>
+    <string name="rest">Descanso</string>
+    <string name="cooldown">Cooldown</string>
+    <string name="transition">Transición</string>
+
+    <string name="search_hint">Buscar ejercicio…</string>
+    <string name="all">Todas</string>
+    <string name="favorites">Favoritos</string>
+
+    <string name="set_format">%1$d / %2$d</string>
+    <string name="remaining_time">Remaining Time</string>
+    <string name="set_label">Set</string>
+    <string name="exercise_label">Exercise</string>
+    <string name="next_label">Next: %1$s</string>
+
+    <string name="settings_sound">Sonido</string>
+    <string name="settings_vibration">Vibración</string>
+    <string name="settings_voice">Asistente de voz</string>
+    <string name="settings_keep_screen_on">Mantener pantalla encendida</string>
+    <string name="settings_calories">Calorías por minuto (estimado)</string>
+
+    <string name="new_exercise">Nuevo ejercicio</string>
+    <string name="edit_exercise">Editar ejercicio</string>
+    <string name="new_tag">Nueva etiqueta</string>
+    <string name="add_tag_hint">Nombre de la etiqueta</string>
+    <string name="add">Añadir</string>
+    <string name="delete_exercise_confirm">¿Eliminar este ejercicio? Esta acción no se puede deshacer.</string>
+    <string name="delete_plan_confirm">¿Eliminar este plan? Esta acción no se puede deshacer.</string>
+    <string name="exercise_name_hint">Nombre del ejercicio</string>
+    <string name="plan_name_hint">Nombre del plan</string>
+    <string name="new_plan_title">Nuevo plan</string>
+    <string name="edit_plan_title">Editar plan</string>
+    <string name="select_exercises">Selecciona los ejercicios</string>
+    <string name="prepare_time">Preparación</string>
+    <string name="work_time">Ejercitar</string>
+    <string name="rest_time">Descanso</string>
+    <string name="iterations">Repeticiones</string>
+    <string name="cooldown_time">Enfriamiento</string>
+    <string name="interval_name_hint">Nombre del intervalo</string>
+    <string name="duration_seconds">Duración (segundos)</string>
+    <string name="repetitions_optional">Repeticiones (opcional)</string>
+    <string name="phase_type">Tipo de fase</string>
+    <string name="weekly">Semanal</string>
+    <string name="no_data_period">Sin actividad en este período</string>
+    <string name="finished_exercises">Ejercicios terminados</string>
+    <string name="compared_last_week">En comparación con la semana pasada</string>
+    <string name="quantity">Cantidad</string>
+    <string name="total">Total</string>
+    <string name="active">Activo</string>
+    <string name="calories">Calorías</string>
+    <string name="empty_exercises">Aún no hay ejercicios. Toca + para crear el primero.</string>
+    <string name="empty_plans">Aún no hay planes. Toca + para crear uno.</string>
+    <string name="favourite_tag">Favoritos</string>
+    <string name="all_tag">Todas</string>
+    <string name="overview_count_format">%1$d ejercicios</string>
+    <string name="week_range">%1$s - %2$s</string>
+    <string name="settings_title">Ajustes</string>
+    <string name="invalid_number">Ingresa un número válido</string>
+</resources>

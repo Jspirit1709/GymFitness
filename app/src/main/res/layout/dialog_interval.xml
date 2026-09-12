@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <EditText
+        android:id="@+id/etIntervalName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/interval_name_hint"
+        android:inputType="text"
+        android:textColorHint="@color/text_hint" />
+
+    <Spinner
+        android:id="@+id/spinnerPhaseType"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp" />
+
+    <EditText
+        android:id="@+id/etIntervalDuration"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:hint="@string/duration_seconds"
+        android:inputType="number"
+        android:textColorHint="@color/text_hint" />
+
+    <EditText
+        android:id="@+id/etIntervalRepetitions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:hint="@string/repetitions_optional"
+        android:inputType="number"
+        android:textColorHint="@color/text_hint" />
+
+</LinearLayout>
