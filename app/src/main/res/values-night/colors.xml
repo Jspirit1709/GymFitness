@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#4C9A85</color>
+    <color name="primary_dark">#2F6F5E</color>
+    <color name="accent">#E8A33D</color>
+
+    <color name="background">#14181A</color>
+    <color name="surface">#1E2427</color>
+    <color name="card_stroke">#2C3336</color>
+
+    <color name="text_primary">#F0F2F1</color>
+    <color name="text_secondary">#AAB2AF</color>
+    <color name="text_hint">#77807C</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <color name="green_check">#3EBE73</color>
+    <color name="red">#E06767</color>
+    <color name="blue">#5B9BD8</color>
+    <color name="orange">#EFA24E</color>
+    <color name="yellow">#EDD168</color>
+
+    <color name="phase_prepare">#EFA24E</color>
+    <color name="phase_work">#A0463F</color>
+    <color name="phase_rest">#3E7C9C</color>
+    <color name="phase_cooldown">#4F9CAE</color>
+    <color name="phase_transition">#6266AE</color>
+    <color name="phase_finished">#3EBE73</color>
+    <color name="phase_idle">#5B615D</color>
+
+    <color name="chip_bg">#232A2D</color>
+    <color name="chip_bg_selected">#4C9A85</color>
+
+    <color name="chart_bar_1">#7CA982</color>
+    <color name="chart_bar_2">#5B9BD8</color>
+    <color name="chart_bar_3">#D4A373</color>
+    <color name="chart_bar_4">#C77A7A</color>
+</resources>

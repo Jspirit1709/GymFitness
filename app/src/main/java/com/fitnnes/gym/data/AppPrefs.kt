@@ -34,4 +34,9 @@ object AppPrefs {
     var caloriesPerMinute: Float
         get() = prefs.getFloat("kcal_per_min", 6.5f)
         set(value) = prefs.edit().putFloat("kcal_per_min", value).apply()
+
+    /** Modo oscuro de la app (independiente del tema del sistema). */
+    var darkModeEnabled: Boolean
+        get() = prefs.getBoolean("dark_mode_enabled", false)
+        set(value) = prefs.edit().putBoolean("dark_mode_enabled", value).apply()
 }

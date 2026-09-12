@@ -109,6 +109,25 @@ object Repository {
         return sessions.filter { it.dateMillis >= cutoff }
     }
 
+    // ---------- Importación / exportación ----------
+
+    /**
+     * Importa entrenamientos desde un JSON externo. Devuelve la cantidad de
+     * ejercicios importados. Lanza excepción si el JSON es inválido.
+     */
+    fun importWorkoutsJson(json: String): Int {
+        val imported = WorkoutImportExport.parseImport(json)
+        if (imported.isEmpty()) return 0
+        exercises.addAll(0, imported)
+        saveExercises()
+        return imported.size
+    }
+
+    /** Exporta todos los ejercicios actuales a un JSON descargable. */
+    fun exportWorkoutsJson(): String {
+        return WorkoutImportExport.exportToJson(exercises)
+    }
+
     // ---------- Persistencia ----------
 
     private fun loadExercises() {

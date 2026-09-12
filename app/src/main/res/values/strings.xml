@@ -87,4 +87,12 @@
     <string name="week_range">%1$s - %2$s</string>
     <string name="settings_title">Ajustes</string>
     <string name="invalid_number">Ingresa un número válido</string>
+    <string name="settings_dark_mode">Modo oscuro</string>
+    <string name="settings_import_export_title">IMPORTACION Y EXPORTACION</string>
+    <string name="settings_import">Importar entrenamientos</string>
+    <string name="settings_export">Exportar entrenamientos</string>
+    <string name="import_success">%1$d ejercicios importados</string>
+    <string name="import_error">No se pudo importar el archivo</string>
+    <string name="export_success">Entrenamientos exportados correctamente</string>
+    <string name="export_error">No se pudo exportar el archivo</string>
 </resources>
