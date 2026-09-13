@@ -17,7 +17,9 @@ data class CustomInterval(
     var name: String = "",
     var time: Int = 30,
     var phaseType: PhaseType = PhaseType.WORK,
-    var repetitions: Int? = null
+    var repetitions: Int? = null,
+    var mediaUri: String? = null,
+    var mediaType: MediaType = MediaType.NONE
 ) : Parcelable
 
 @Parcelize
@@ -31,6 +33,7 @@ data class Exercise(
     var favourite: Boolean = false,
     var notes: String? = null,
     var mediaUri: String? = null,
+    var mediaType: MediaType = MediaType.NONE,
     var tags: List<String> = emptyList(),
     var exerciseType: ExerciseType = ExerciseType.HIIT,
     var useCustomIntervals: Boolean = false,
@@ -41,7 +44,6 @@ data class Exercise(
     var createdAt: Long = System.currentTimeMillis()
 ) : Parcelable {
 
-    /** Duración total de UNA ronda, en segundos. */
     fun getRoundDuration(): Int {
         return if (useCustomIntervals && customSequence.isNotEmpty()) {
             customSequence.sumOf { it.time }
@@ -50,7 +52,6 @@ data class Exercise(
         }
     }
 
-    /** Duración total del ejercicio (todas las rondas), en segundos. */
     fun getTotalTime(): Int {
         val perRound = if (useCustomIntervals && customSequence.isNotEmpty()) {
             customSequence.sumOf { it.time }
@@ -71,6 +72,5 @@ data class ExercisePlan(
     var id: String = UUID.randomUUID().toString(),
     var name: String = "My Plan",
     var exerciseIds: List<String> = emptyList(),
-    var colorHex: String? = null,
     var createdAt: Long = System.currentTimeMillis()
 ) : Parcelable
