@@ -16,7 +16,6 @@
         android:paddingStart="24dp"
         android:paddingEnd="24dp">
 
-        <!-- Fila superior: Remaining Time / Set -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -39,8 +38,7 @@
                     android:layout_height="wrap_content"
                     android:textColor="@color/white"
                     android:textSize="16sp"
-                    tools:text="02:00"
- />
+                    tools:text="02:00" />
             </LinearLayout>
 
             <LinearLayout
@@ -60,12 +58,10 @@
                     android:layout_height="wrap_content"
                     android:textColor="@color/white"
                     android:textSize="16sp"
-                    tools:text="1 / 3"
- />
+                    tools:text="1 / 3" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Ejercicio actual / siguiente -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -85,8 +81,7 @@
                 android:textColor="@color/white"
                 android:textSize="20sp"
                 android:textStyle="bold"
-                tools:text="Jumping Jacks"
- />
+                tools:text="Jumping Jacks" />
             <TextView
                 android:id="@+id/tvNextExercise"
                 android:layout_width="wrap_content"
@@ -94,11 +89,9 @@
                 android:layout_marginTop="2dp"
                 android:textColor="#B8FFFFFF"
                 android:textSize="13sp"
-                tools:text="Next: Push Ups"
- />
+                tools:text="Next: Push Ups" />
         </LinearLayout>
 
-        <!-- Centro: fase + timer grande -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -112,8 +105,7 @@
                 android:layout_height="wrap_content"
                 android:textColor="@color/white"
                 android:textSize="22sp"
-                tools:text="Work"
- />
+                tools:text="Work" />
 
             <TextView
                 android:id="@+id/tvTimer"
@@ -123,8 +115,7 @@
                 android:fontFamily="sans-serif-light"
                 android:textColor="@color/white"
                 android:textSize="96sp"
-                tools:text="00:30"
- />
+                tools:text="00:30" />
 
             <ImageView
                 android:id="@+id/ivPhaseIcon"
@@ -137,19 +128,32 @@
             <FrameLayout
                 android:id="@+id/mediaContainer"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
+                android:layout_height="230dp"
                 android:layout_marginTop="16dp"
                 android:visibility="gone">
+
                 <ImageView
                     android:id="@+id/ivMedia"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:scaleType="centerCrop" />
+                    android:scaleType="centerCrop"
+                    android:visibility="gone" />
+
+                <VideoView
+                    android:id="@+id/videoMedia"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <WebView
+                    android:id="@+id/webMedia"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
             </FrameLayout>
 
         </LinearLayout>
 
-        <!-- ProgressBar de fase -->
         <ProgressBar
             android:id="@+id/progressBar"
             style="?android:attr/progressBarStyleHorizontal"
@@ -159,7 +163,6 @@
             android:progressTint="@color/white"
             android:progressBackgroundTint="#33FFFFFF" />
 
-        <!-- Fila lock / sound -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -188,7 +191,6 @@
                 app:tint="@color/white" />
         </LinearLayout>
 
-        <!-- Plan actual -->
         <LinearLayout
             android:id="@+id/planInfoLayout"
             android:layout_width="match_parent"
@@ -202,8 +204,7 @@
                 android:layout_height="wrap_content"
                 android:textColor="#B8FFFFFF"
                 android:textSize="12sp"
-                tools:text="Plan 06:40"
- />
+                tools:text="Plan 06:40" />
             <TextView
                 android:id="@+id/tvPlanName"
                 android:layout_width="wrap_content"
@@ -211,19 +212,16 @@
                 android:textColor="@color/white"
                 android:textSize="15sp"
                 android:textStyle="bold"
-                tools:text="Full Body"
- />
+                tools:text="Full Body" />
             <TextView
                 android:id="@+id/tvPlanProgress"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="#B8FFFFFF"
                 android:textSize="12sp"
-                tools:text="1 / 3"
- />
+                tools:text="1 / 3" />
         </LinearLayout>
 
-        <!-- Controles de transporte -->
         <LinearLayout
             android:id="@+id/transportControls"
             android:layout_width="match_parent"
