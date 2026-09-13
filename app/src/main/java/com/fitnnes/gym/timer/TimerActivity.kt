@@ -5,17 +5,23 @@ import android.net.Uri
 import android.os.*
 import android.view.View
 import android.view.WindowManager
+import android.webkit.WebView
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.MediaController
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.fitnnes.gym.R
+import com.bumptech.glide.Glide
 import com.fitnnes.gym.data.AppPrefs
+import com.fitnnes.gym.data.MediaUtils
 import com.fitnnes.gym.menu.MainActivity
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExercisePlan
+import com.fitnnes.gym.workoutdomain.MediaType
 
 class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
 
@@ -45,11 +51,19 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private lateinit var ivPhaseIcon: ImageView
     private lateinit var mediaContainer: View
     private lateinit var ivMedia: ImageView
+    private lateinit var videoMedia: VideoView
+    private lateinit var webMedia: WebView
+    private lateinit var btnToggleMedia: ImageButton
+    private lateinit var btnCloseMedia: ImageButton
     private lateinit var rootLayout: View
     private lateinit var planInfoLayout: View
 
     private var exercise: Exercise? = null
     private var exercisePlan: ExercisePlan? = null
+
+    private var mediaPanelVisible = false
+    private var currentMediaUri: String? = null
+    private var currentMediaType: MediaType = MediaType.NONE
 
     companion object {
         fun startWithExercise(context: Context, exercise: Exercise): Intent {
@@ -104,15 +118,31 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         ivPhaseIcon = findViewById(R.id.ivPhaseIcon)
         mediaContainer = findViewById(R.id.mediaContainer)
         ivMedia = findViewById(R.id.ivMedia)
+        videoMedia = findViewById(R.id.videoMedia)
+        webMedia = findViewById(R.id.webMedia)
+        btnToggleMedia = findViewById(R.id.btnToggleMedia)
+        btnCloseMedia = findViewById(R.id.btnCloseMedia)
         planInfoLayout = findViewById(R.id.planInfoLayout)
+
+        webMedia.settings.javaScriptEnabled = true
+        webMedia.settings.mediaPlaybackRequiresUserGesture = false
+
+        btnToggleMedia.setOnClickListener {
+            mediaPanelVisible = !mediaPanelVisible
+            renderMediaPanel()
+        }
+        btnCloseMedia.setOnClickListener {
+            mediaPanelVisible = false
+            renderMediaPanel()
+        }
 
         btnPauseResume.setOnClickListener {
             val service = timerService ?: return@setOnClickListener
             if (service.getTimerState().isPaused) service.resumeTimer() else service.pauseTimer()
         }
         btnSkipStart.setOnClickListener { if (!controlsLocked) timerService?.skipToFirstExercise() }
-        btnPrevious.setOnClickListener { if (!controlsLocked) timerService?.previousExercise() }
-        btnNext.setOnClickListener { if (!controlsLocked) timerService?.nextExercise() }
+        btnPrevious.setOnClickListener { if (!controlsLocked) timerService?.previousStep() }
+        btnNext.setOnClickListener { if (!controlsLocked) timerService?.nextStep() }
         btnSkipEnd.setOnClickListener { if (!controlsLocked) timerService?.skipToLastExercise() }
         btnStop.setOnClickListener { if (!controlsLocked) { timerService?.stopTimer(); goToMenu() } }
 
@@ -233,14 +263,78 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             progressBar.progress = state.totalTime - state.currentTime
         }
 
-        if (!state.mediaUri.isNullOrBlank()) {
-            mediaContainer.visibility = View.VISIBLE
-            ivPhaseIcon.visibility = View.GONE
-            runCatching { ivMedia.setImageURI(Uri.parse(state.mediaUri)) }
-        } else {
-            mediaContainer.visibility = View.GONE
-            ivPhaseIcon.visibility = View.VISIBLE
+        val mediaChanged = state.mediaUri != currentMediaUri || state.mediaType != currentMediaType
+        currentMediaUri = state.mediaUri
+        currentMediaType = state.mediaType
+
+        val hasMedia = !state.mediaUri.isNullOrBlank() && state.mediaType != MediaType.NONE
+        btnToggleMedia.visibility = if (hasMedia) View.VISIBLE else View.GONE
+        ivPhaseIcon.visibility = if (hasMedia && mediaPanelVisible) View.GONE else View.VISIBLE
+
+        if (!hasMedia) {
+            // Sin media para este paso: ocultamos el panel si estaba abierto.
+            if (mediaPanelVisible) {
+                mediaPanelVisible = false
+            }
+            renderMediaPanel()
+        } else if (mediaChanged) {
+            // Cambió el paso/ejercicio: refrescamos el contenido si el panel está abierto.
+            renderMediaPanel()
         }
+    }
+
+    /** Muestra u oculta el panel flotante de media, y carga el contenido correcto según el tipo. */
+    private fun renderMediaPanel() {
+        if (!mediaPanelVisible || currentMediaUri.isNullOrBlank()) {
+            mediaContainer.visibility = View.GONE
+            ivPhaseIcon.visibility = if (btnToggleMedia.visibility == View.VISIBLE) View.VISIBLE else ivPhaseIcon.visibility
+            stopVideoPlayback()
+            webMedia.loadUrl("about:blank")
+            return
+        }
+
+        mediaContainer.visibility = View.VISIBLE
+        ivPhaseIcon.visibility = View.GONE
+        ivMedia.visibility = View.GONE
+        videoMedia.visibility = View.GONE
+        webMedia.visibility = View.GONE
+        stopVideoPlayback()
+
+        val uri = currentMediaUri ?: return
+        when (currentMediaType) {
+            MediaType.IMAGE_BASE64 -> {
+                ivMedia.visibility = View.VISIBLE
+                runCatching { Glide.with(this).load(uri).into(ivMedia) }
+            }
+            MediaType.VIDEO_FILE -> {
+                videoMedia.visibility = View.VISIBLE
+                runCatching {
+                    videoMedia.setMediaController(MediaController(this).apply { setAnchorView(videoMedia) })
+                    videoMedia.setVideoURI(Uri.parse(uri))
+                    videoMedia.setOnPreparedListener { it.isLooping = true }
+                    videoMedia.start()
+                }
+            }
+            MediaType.YOUTUBE -> {
+                webMedia.visibility = View.VISIBLE
+                val embedUrl = MediaUtils.youtubeEmbedUrl(uri)
+                if (embedUrl != null) {
+                    webMedia.loadUrl(embedUrl)
+                } else {
+                    webMedia.visibility = View.GONE
+                    mediaContainer.visibility = View.GONE
+                    ivPhaseIcon.visibility = View.VISIBLE
+                }
+            }
+            MediaType.NONE -> {
+                mediaContainer.visibility = View.GONE
+                ivPhaseIcon.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun stopVideoPlayback() {
+        runCatching { if (videoMedia.isPlaying) videoMedia.stopPlayback() }
     }
 
     private fun formatTime(seconds: Int): String {
@@ -259,6 +353,8 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             unbindService(this)
             isBound = false
         }
+        stopVideoPlayback()
+        webMedia.destroy()
         super.onDestroy()
     }
 

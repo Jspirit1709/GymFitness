@@ -11,6 +11,7 @@ import com.fitnnes.gym.data.Repository
 import com.fitnnes.gym.data.WorkoutSession
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExercisePlan
+import com.fitnnes.gym.workoutdomain.MediaType
 import com.fitnnes.gym.workoutdomain.PhaseType
 import java.util.Locale
 
@@ -23,7 +24,9 @@ data class TimerStep(
     val phase: TimerPhase,
     val duration: Int,
     val label: String,
-    val repetitions: Int? = null
+    val repetitions: Int? = null,
+    val mediaUri: String? = null,
+    val mediaType: MediaType = MediaType.NONE
 )
 
 data class TimerState(
@@ -42,7 +45,10 @@ data class TimerState(
     val planSize: Int = 1,
     val planElapsed: Int = 0,
     val exerciseTotalTime: Int = 0,
-    val mediaUri: String? = null
+    val mediaUri: String? = null,
+    val mediaType: MediaType = MediaType.NONE,
+    val hasPreviousStep: Boolean = false,
+    val hasNextStep: Boolean = true
 )
 
 interface TimerListener {
@@ -173,7 +179,9 @@ class TimerService : Service() {
                             phase = phase,
                             duration = interval.time,
                             label = interval.name.ifBlank { defaultLabel(phase) },
-                            repetitions = interval.repetitions
+                            repetitions = interval.repetitions,
+                            mediaUri = interval.mediaUri,
+                            mediaType = interval.mediaType
                         )
                     )
                 }
@@ -335,6 +343,38 @@ class TimerService : Service() {
         runStep()
     }
 
+    /**
+     * Retrocede un bloque/intervalo dentro del ejercicio actual. Si ya estamos en el
+     * primer bloque, retrocede al ejercicio anterior del plan (si existe).
+     */
+    fun previousStep() {
+        countDownTimer?.cancel()
+        if (stepIndex > 0) {
+            stepIndex--
+            planElapsedSeconds = (planElapsedSeconds - (steps.getOrNull(stepIndex)?.duration ?: 0)).coerceAtLeast(0)
+            updateRoundIfNeeded()
+            runStep()
+        } else {
+            previousExercise()
+        }
+    }
+
+    /**
+     * Avanza un bloque/intervalo dentro del ejercicio actual. Si ya estamos en el
+     * último bloque, avanza al siguiente ejercicio del plan (o termina la sesión).
+     */
+    fun nextStep() {
+        countDownTimer?.cancel()
+        planElapsedSeconds += (steps.getOrNull(stepIndex)?.duration ?: 0) - remainingTime
+        stepIndex++
+        if (stepIndex < steps.size) {
+            updateRoundIfNeeded()
+            runStep()
+        } else {
+            onExerciseFinished()
+        }
+    }
+
     /** Salta al ejercicio anterior del plan. */
     fun previousExercise() {
         if (currentExerciseIndex > 0) {
@@ -397,6 +437,14 @@ class TimerService : Service() {
         val ex = getCurrentExercise()
         val step = steps.getOrNull(stepIndex)
         val nextEx = planExercises.getOrNull(currentExerciseIndex + 1)
+
+        val stepMediaUri = step?.mediaUri
+        val mediaUri = if (!stepMediaUri.isNullOrBlank()) stepMediaUri else ex?.mediaUri
+        val mediaType = if (!stepMediaUri.isNullOrBlank()) step.mediaType else (ex?.mediaType ?: MediaType.NONE)
+
+        val hasPrev = stepIndex > 0 || currentExerciseIndex > 0
+        val hasNext = stepIndex < steps.size - 1 || currentExerciseIndex < planExercises.size - 1
+
         return TimerState(
             phase = currentPhase,
             stepLabel = step?.label ?: "",
@@ -413,7 +461,10 @@ class TimerService : Service() {
             planSize = planExercises.size,
             planElapsed = planElapsedSeconds,
             exerciseTotalTime = ex?.getTotalTime() ?: 0,
-            mediaUri = ex?.mediaUri
+            mediaUri = mediaUri,
+            mediaType = mediaType,
+            hasPreviousStep = hasPrev,
+            hasNextStep = hasNext
         )
     }
 

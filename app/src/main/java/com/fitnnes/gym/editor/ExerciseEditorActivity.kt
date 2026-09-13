@@ -26,6 +26,7 @@ import com.fitnnes.gym.data.Repository
 import com.fitnnes.gym.workoutdomain.CustomInterval
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExerciseType
+import com.fitnnes.gym.workoutdomain.MediaType
 import com.fitnnes.gym.workoutdomain.PhaseType
 
 class ExerciseEditorActivity : AppCompatActivity() {
@@ -72,19 +73,13 @@ class ExerciseEditorActivity : AppCompatActivity() {
     private lateinit var rvIntervals: RecyclerView
     private lateinit var btnDeleteExercise: TextView
 
-    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            exercise.mediaUri = uri.toString()
-            updateMediaPreview()
-        }
-    }
+    private lateinit var mediaPickerDialog: MediaPickerDialog
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_exercise_editor)
+
+        mediaPickerDialog = MediaPickerDialog(this)
 
         val id = intent.getStringExtra(EXTRA_EXERCISE_ID)
         exercise = if (id != null) Repository.getExercise(id) ?: Exercise() else Exercise()
@@ -207,9 +202,11 @@ class ExerciseEditorActivity : AppCompatActivity() {
             applyChipStyle(chipMedia, show)
         }
 
-        btnPickMedia.setOnClickListener { pickImageLauncher.launch(arrayOf("image/*")) }
+        btnPickMedia.setOnClickListener { openMediaDialog() }
+        ivMediaPreview.setOnClickListener { openMediaDialog() }
         btnRemoveMedia.setOnClickListener {
             exercise.mediaUri = null
+            exercise.mediaType = MediaType.NONE
             updateMediaPreview()
         }
 
@@ -232,12 +229,26 @@ class ExerciseEditorActivity : AppCompatActivity() {
         btnDeleteExercise.setOnClickListener { confirmDelete() }
     }
 
+    private fun openMediaDialog() {
+        mediaPickerDialog.show(exercise.mediaUri, exercise.mediaType) { uri, type ->
+            exercise.mediaUri = uri
+            exercise.mediaType = type
+            updateMediaPreview()
+        }
+    }
+
     private fun updateMediaPreview() {
         if (exercise.mediaUri.isNullOrBlank()) {
             ivMediaPreview.visibility = View.GONE
-        } else {
-            ivMediaPreview.visibility = View.VISIBLE
-            runCatching { ivMediaPreview.setImageURI(android.net.Uri.parse(exercise.mediaUri)) }
+            return
+        }
+        ivMediaPreview.visibility = View.VISIBLE
+        when (exercise.mediaType) {
+            MediaType.IMAGE_BASE64 -> runCatching {
+                com.bumptech.glide.Glide.with(this).load(exercise.mediaUri).into(ivMediaPreview)
+            }
+            MediaType.VIDEO_FILE, MediaType.YOUTUBE -> ivMediaPreview.setImageResource(R.drawable.ic_play)
+            MediaType.NONE -> ivMediaPreview.visibility = View.GONE
         }
     }
 
@@ -293,6 +304,41 @@ class ExerciseEditorActivity : AppCompatActivity() {
         val spinner = view.findViewById<Spinner>(R.id.spinnerPhaseType)
         val etDuration = view.findViewById<EditText>(R.id.etIntervalDuration)
         val etReps = view.findViewById<EditText>(R.id.etIntervalRepetitions)
+        val ivIntervalMedia = view.findViewById<ImageView>(R.id.ivIntervalMediaPreview)
+        val btnIntervalMedia = view.findViewById<TextView>(R.id.btnIntervalMedia)
+
+        var intervalMediaUri = existing?.mediaUri
+        var intervalMediaType = existing?.mediaType ?: MediaType.NONE
+
+        fun refreshIntervalMediaIcon() {
+            when {
+                intervalMediaUri.isNullOrBlank() -> {
+                    ivIntervalMedia.setImageResource(R.drawable.ic_media)
+                    ivIntervalMedia.setColorFilter(ContextCompat.getColor(this, R.color.text_hint))
+                }
+                intervalMediaType == MediaType.IMAGE_BASE64 -> {
+                    ivIntervalMedia.clearColorFilter()
+                    runCatching {
+                        com.bumptech.glide.Glide.with(this).load(intervalMediaUri).into(ivIntervalMedia)
+                    }
+                }
+                else -> {
+                    ivIntervalMedia.setImageResource(R.drawable.ic_play)
+                    ivIntervalMedia.setColorFilter(ContextCompat.getColor(this, R.color.primary))
+                }
+            }
+        }
+        refreshIntervalMediaIcon()
+
+        val openIntervalMedia = {
+            mediaPickerDialog.show(intervalMediaUri, intervalMediaType) { uri, type ->
+                intervalMediaUri = uri
+                intervalMediaType = type
+                refreshIntervalMediaIcon()
+            }
+        }
+        btnIntervalMedia.setOnClickListener { openIntervalMedia() }
+        ivIntervalMedia.setOnClickListener { openIntervalMedia() }
 
         val phaseLabels = listOf(
             getString(R.string.prepare), getString(R.string.work),
@@ -316,7 +362,14 @@ class ExerciseEditorActivity : AppCompatActivity() {
                 val duration = etDuration.text.toString().toIntOrNull() ?: 30
                 val reps = etReps.text.toString().toIntOrNull()
                 val phase = phaseValues[spinner.selectedItemPosition]
-                val interval = CustomInterval(name = name, time = duration, phaseType = phase, repetitions = reps)
+                val interval = CustomInterval(
+                    name = name,
+                    time = duration,
+                    phaseType = phase,
+                    repetitions = reps,
+                    mediaUri = intervalMediaUri,
+                    mediaType = intervalMediaType
+                )
 
                 val list = intervalAdapter.currentList().toMutableList()
                 if (position >= 0) list[position] = interval else list.add(interval)

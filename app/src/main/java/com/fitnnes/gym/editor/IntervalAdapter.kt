@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -43,6 +44,7 @@ class IntervalAdapter(
         private val tvDetail = itemView.findViewById<TextView>(R.id.tvIntervalDetail)
         private val dot = itemView.findViewById<View>(R.id.viewPhaseDot)
         private val btnMenu = itemView.findViewById<ImageButton>(R.id.btnIntervalMenu)
+        private val ivMediaBadge = itemView.findViewById<ImageView>(R.id.ivIntervalMediaBadge)
 
         fun bind(interval: CustomInterval, position: Int) {
             tvName.text = interval.name.ifBlank { "Intervalo" }
@@ -51,6 +53,7 @@ class IntervalAdapter(
             } else {
                 "↗ ${TimeFormat.mmss(interval.time)}"
             }
+            ivMediaBadge.visibility = if (interval.mediaUri.isNullOrBlank()) View.GONE else View.VISIBLE
 
             val colorRes = when (interval.phaseType) {
                 PhaseType.PREPARE -> R.color.phase_prepare

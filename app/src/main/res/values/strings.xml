@@ -24,6 +24,9 @@
     <string name="tags">Etiquetas</string>
     <string name="notes">Notas</string>
     <string name="media">Media</string>
+    <string name="media_picker_help">Se pueden insertar imágenes/GIFs y vídeos del dispositivo o de Internet. También se admiten enlaces a vídeos de YouTube.</string>
+    <string name="media_picker_title">Editar media</string>
+    <string name="media_invalid_link">No se pudo reconocer ese enlace</string>
     <string name="custom_intervals">Intervalos personalizados</string>
     <string name="rounds">Rondas</string>
     <string name="intervals">Intervalos</string>

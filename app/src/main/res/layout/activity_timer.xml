@@ -62,35 +62,50 @@
             </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:orientation="vertical"
-            android:gravity="center_horizontal">
-            <TextView
-                android:layout_width="wrap_content"
+            android:layout_marginTop="18dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/exercise_label"
-                android:textColor="#B8FFFFFF"
-                android:textSize="12sp" />
-            <TextView
-                android:id="@+id/tvExerciseName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                tools:text="Jumping Jacks" />
-            <TextView
-                android:id="@+id/tvNextExercise"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="#B8FFFFFF"
-                android:textSize="13sp"
-                tools:text="Next: Push Ups" />
-        </LinearLayout>
+                android:orientation="vertical"
+                android:gravity="center_horizontal">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/exercise_label"
+                    android:textColor="#B8FFFFFF"
+                    android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/tvExerciseName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/white"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    tools:text="Jumping Jacks" />
+                <TextView
+                    android:id="@+id/tvNextExercise"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="#B8FFFFFF"
+                    android:textSize="13sp"
+                    tools:text="Next: Push Ups" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btnToggleMedia"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="end|top"
+                android:background="@drawable/bg_circle_dark"
+                android:src="@drawable/ic_media"
+                android:visibility="gone"
+                app:tint="@color/white" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -124,33 +139,6 @@
                 android:layout_marginTop="16dp"
                 android:src="@drawable/ic_dumbbell"
                 app:tint="@color/white" />
-
-            <FrameLayout
-                android:id="@+id/mediaContainer"
-                android:layout_width="match_parent"
-                android:layout_height="230dp"
-                android:layout_marginTop="16dp"
-                android:visibility="gone">
-
-                <ImageView
-                    android:id="@+id/ivMedia"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:visibility="gone" />
-
-                <VideoView
-                    android:id="@+id/videoMedia"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:visibility="gone" />
-
-                <WebView
-                    android:id="@+id/webMedia"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:visibility="gone" />
-            </FrameLayout>
 
         </LinearLayout>
 
@@ -284,4 +272,45 @@
             android:textColor="#B8FFFFFF" />
 
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/mediaContainer"
+        android:layout_width="match_parent"
+        android:layout_height="260dp"
+        android:layout_gravity="center"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:background="@drawable/bg_card"
+        android:elevation="8dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/ivMedia"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <VideoView
+            android:id="@+id/videoMedia"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <WebView
+            android:id="@+id/webMedia"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btnCloseMedia"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end|top"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_circle_dark"
+            android:src="@drawable/ic_close"
+            app:tint="@color/white" />
+    </FrameLayout>
 </FrameLayout>

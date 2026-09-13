@@ -45,6 +45,15 @@
             tools:text="↗ 00:30" />
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/ivIntervalMediaBadge"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="6dp"
+        android:src="@drawable/ic_media"
+        android:visibility="gone"
+        app:tint="@color/text_secondary" />
+
     <ImageButton
         android:id="@+id/btnIntervalMenu"
         android:layout_width="36dp"
