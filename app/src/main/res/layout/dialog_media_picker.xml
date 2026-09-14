@@ -42,10 +42,46 @@
                 app:tint="@color/text_hint" />
         </FrameLayout>
 
+        <!-- FIX: el RadioGroup estaba metido en el medio de la fila horizontal de
+             abajo (ícono + EditText con weight=1 + botón confirmar) y con
+             layout_width="match_parent" — en un LinearLayout horizontal eso hace que
+             se coma todo el ancho antes de que el EditText pesado reciba su espacio,
+             dejando el campo de URL invisible/inservible. Ahora el RadioGroup tiene su
+             propia fila, con wrap_content, y la fila de abajo queda intacta para el
+             ícono + campo de URL + botón de confirmar. -->
+        <RadioGroup
+            android:id="@+id/rgMediaType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rbTypeImage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Imagen" />
+
+            <RadioButton
+                android:id="@+id/rbTypeVideo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="Video" />
+
+            <RadioButton
+                android:id="@+id/rbTypeYoutube"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:text="YouTube" />
+        </RadioGroup>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/bg_input"
             android:gravity="center_vertical"
             android:orientation="horizontal"
@@ -57,36 +93,6 @@
                 android:layout_height="20dp"
                 android:src="@drawable/ic_edit"
                 app:tint="@color/text_secondary" />
-
-    <RadioGroup
-        android:id="@+id/rgMediaType"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp">
-
-        <RadioButton
-            android:id="@+id/rbTypeImage"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:text="Imagen" />
-
-        <RadioButton
-            android:id="@+id/rbTypeVideo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:text="Video" />
-
-        <RadioButton
-            android:id="@+id/rbTypeYoutube"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:text="YouTube" />
-    </RadioGroup>
 
             <EditText
                 android:id="@+id/etMediaUrl"
