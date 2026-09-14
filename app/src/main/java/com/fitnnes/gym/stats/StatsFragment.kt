@@ -3,9 +3,12 @@ package com.fitnnes.gym.stats
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -24,6 +27,7 @@ import java.util.Locale
 class StatsFragment : Fragment(R.layout.fragment_stats) {
 
     private var weekOffset = 0
+    private var monthOffset = 0
     private lateinit var statAdapter: StatExerciseAdapter
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
     private val dayLabels = listOf("lun", "mar", "mié", "jue", "vie", "sáb", "dom")
@@ -39,6 +43,12 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
     private lateinit var rvStatExercises: RecyclerView
     private lateinit var btnWeekPrev: ImageButton
     private lateinit var btnWeekNext: ImageButton
+    private lateinit var tvMonthYear: TextView
+    private lateinit var btnMonthPrev: ImageButton
+    private lateinit var btnMonthNext: ImageButton
+    private lateinit var calendarWeekHeader: LinearLayout
+    private lateinit var calendarGrid: GridLayout
+    private val monthYearFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -53,6 +63,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         rvStatExercises = view.findViewById(R.id.rvStatExercises)
         btnWeekPrev = view.findViewById(R.id.btnWeekPrev)
         btnWeekNext = view.findViewById(R.id.btnWeekNext)
+        tvMonthYear = view.findViewById(R.id.tvMonthYear)
+        btnMonthPrev = view.findViewById(R.id.btnMonthPrev)
+        btnMonthNext = view.findViewById(R.id.btnMonthNext)
+        calendarWeekHeader = view.findViewById(R.id.calendarWeekHeader)
+        calendarGrid = view.findViewById(R.id.calendarGrid)
 
         statAdapter = StatExerciseAdapter()
         rvStatExercises.layoutManager = LinearLayoutManager(requireContext())
@@ -69,6 +84,18 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
             }
         }
 
+        btnMonthPrev.setOnClickListener {
+            monthOffset -= 1
+            buildCalendar(monthOffset)
+        }
+        btnMonthNext.setOnClickListener {
+            if (monthOffset < 0) {
+                monthOffset += 1
+                buildCalendar(monthOffset)
+            }
+        }
+
+        buildCalendarWeekHeader()
         refresh()
     }
 
@@ -139,6 +166,126 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         buildChart(start, sessions)
         buildExerciseList(sessions)
+        buildCalendar(monthOffset)
+    }
+
+    /** Encabezado fijo lun-dom arriba de la grilla del calendario. */
+    private fun buildCalendarWeekHeader() {
+        calendarWeekHeader.removeAllViews()
+        val density = resources.displayMetrics.density
+        for (label in dayLabels) {
+            val tv = TextView(requireContext()).apply {
+                text = label
+                textSize = 11f
+                gravity = Gravity.CENTER
+                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            calendarWeekHeader.addView(tv)
+        }
+    }
+
+    /**
+     * Calendario de mes real: usa Calendar.getActualMaximum(DAY_OF_MONTH) para saber
+     * cuántos días tiene el mes (28/29 en febrero según año bisiesto, 30/31 el resto) y
+     * Calendar.add(MONTH, offset) para cruzar de año automáticamente — así el mes/año
+     * mostrado siempre es el real, sin tablas fijas a mano.
+     */
+    private fun buildCalendar(offset: Int) {
+        if (!::calendarGrid.isInitialized) return
+
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.add(Calendar.MONTH, offset)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+
+        tvMonthYear.text = monthYearFormat.format(cal.time).replaceFirstChar { it.uppercase() }
+        btnMonthNext.isEnabled = offset < 0
+        btnMonthNext.alpha = if (offset < 0) 1f else 0.35f
+
+        val year = cal.get(Calendar.YEAR)
+        val month = cal.get(Calendar.MONTH)
+        val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        // Calendar.DAY_OF_WEEK: domingo=1 ... sábado=7. Lo pasamos a lunes=0 ... domingo=6.
+        val firstDayOfWeek = (cal.get(Calendar.DAY_OF_WEEK) + 5) % 7
+
+        val sessionsByDay = Repository.getSessions()
+            .filter {
+                val c = Calendar.getInstance().apply { timeInMillis = it.dateMillis }
+                c.get(Calendar.YEAR) == year && c.get(Calendar.MONTH) == month
+            }
+            .groupBy {
+                Calendar.getInstance().apply { timeInMillis = it.dateMillis }.get(Calendar.DAY_OF_MONTH)
+            }
+
+        val today = Calendar.getInstance()
+        val isCurrentMonth = today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) == month
+
+        calendarGrid.removeAllViews()
+        calendarGrid.columnCount = 7
+
+        repeat(firstDayOfWeek) { calendarGrid.addView(calendarDayCell(null, emptyList(), false)) }
+        for (day in 1..daysInMonth) {
+            val daySessions = sessionsByDay[day].orEmpty()
+            val isToday = isCurrentMonth && today.get(Calendar.DAY_OF_MONTH) == day
+            calendarGrid.addView(calendarDayCell(day, daySessions, isToday))
+        }
+    }
+
+    private fun calendarDayCell(day: Int?, sessions: List<WorkoutSession>, isToday: Boolean): View {
+        val density = resources.displayMetrics.density
+        val sizePx = (40 * density).toInt()
+
+        val cell = FrameLayout(requireContext()).apply {
+            layoutParams = GridLayout.LayoutParams().apply {
+                width = 0
+                height = sizePx
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                setMargins((2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt(), (2 * density).toInt())
+            }
+        }
+
+        if (day == null) return cell
+
+        val marked = sessions.isNotEmpty()
+        val circleSize = (30 * density).toInt()
+        val background = View(requireContext()).apply {
+            layoutParams = FrameLayout.LayoutParams(circleSize, circleSize, Gravity.CENTER)
+            setBackgroundResource(
+                when {
+                    marked -> R.drawable.bg_day_dot
+                    isToday -> R.drawable.bg_day_today_ring
+                    else -> 0
+                }
+            )
+        }
+        val label = TextView(requireContext()).apply {
+            text = day.toString()
+            textSize = 12f
+            gravity = Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER)
+            setTextColor(
+                ContextCompat.getColor(
+                    requireContext(),
+                    if (marked) R.color.white else R.color.text_primary
+                )
+            )
+        }
+
+        cell.addView(background)
+        cell.addView(label)
+
+        if (marked) {
+            cell.setOnClickListener {
+                val names = sessions.joinToString(", ") { it.exerciseName }
+                Toast.makeText(requireContext(), names, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        return cell
     }
 
     private fun buildChart(weekStart: Long, sessions: List<WorkoutSession>) {

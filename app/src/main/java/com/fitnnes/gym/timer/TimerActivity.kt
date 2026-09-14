@@ -23,6 +23,7 @@ import com.fitnnes.gym.R
 import com.bumptech.glide.Glide
 import com.fitnnes.gym.data.AppPrefs
 import com.fitnnes.gym.data.MediaUtils
+import com.fitnnes.gym.data.Repository
 import com.fitnnes.gym.menu.MainActivity
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExercisePlan
@@ -74,18 +75,21 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     companion object {
         private const val TAG = "TimerActivity"
 
-        fun startWithExercise(context: Context, exercise: Exercise): Intent {
+        // FIX: antes viajaba el Exercise/ExercisePlan completo (con imágenes en base64)
+        // por el Intent -> TransactionTooLargeException con workouts con varias
+        // imágenes, y el entrenamiento no arrancaba. Ahora solo viaja el id.
+        fun startWithExercise(context: Context, exerciseId: String): Intent {
             return Intent(context, TimerActivity::class.java).apply {
                 val bundle = Bundle()
-                bundle.putParcelable(TimerService.EXTRA_EXERCISE, exercise)
+                bundle.putString(TimerService.EXTRA_EXERCISE_ID, exerciseId)
                 putExtra(TimerService.EXTRA_BUNDLE, bundle)
             }
         }
 
-        fun startWithPlan(context: Context, plan: ExercisePlan): Intent {
+        fun startWithPlan(context: Context, planId: String): Intent {
             return Intent(context, TimerActivity::class.java).apply {
                 val bundle = Bundle()
-                bundle.putParcelable(TimerService.EXTRA_EXERCISE_PLAN, plan)
+                bundle.putString(TimerService.EXTRA_EXERCISE_PLAN_ID, planId)
                 putExtra(TimerService.EXTRA_BUNDLE, bundle)
             }
         }
@@ -198,15 +202,22 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
 
     private fun loadIntentData() {
         intent.getBundleExtra(TimerService.EXTRA_BUNDLE)?.let { bundle ->
-            exercise = bundle.getParcelable(TimerService.EXTRA_EXERCISE)
-            exercisePlan = bundle.getParcelable(TimerService.EXTRA_EXERCISE_PLAN)
+            bundle.getString(TimerService.EXTRA_EXERCISE_ID)?.let { id ->
+                exercise = Repository.getExercise(id)
+            }
+            bundle.getString(TimerService.EXTRA_EXERCISE_PLAN_ID)?.let { id ->
+                exercisePlan = Repository.getPlan(id)
+            }
         }
     }
 
     private fun bindAndStartService() {
+        val bundle = intent.getBundleExtra(TimerService.EXTRA_BUNDLE)
+        val exerciseId = bundle?.getString(TimerService.EXTRA_EXERCISE_ID)
+        val planId = bundle?.getString(TimerService.EXTRA_EXERCISE_PLAN_ID)
         val serviceIntent = when {
-            exercisePlan != null -> TimerService.startWithPlan(this, exercisePlan!!)
-            exercise != null -> TimerService.startWithExercise(this, exercise!!)
+            planId != null -> TimerService.startWithPlan(this, planId)
+            exerciseId != null -> TimerService.startWithExercise(this, exerciseId)
             else -> return
         }
         ContextCompat.startForegroundService(this, serviceIntent)
@@ -419,6 +430,11 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             ivPhaseIcon.visibility = View.VISIBLE
             return
         }
+        // FIX: antes solo se escuchaba pasivo (window.addEventListener('message', ...))
+        // sin nunca pedirle al iframe que empezara a emitir los eventos de estado — el
+        // player de YouTube no manda onStateChange a menos que se lo pidas explícitamente
+        // con el comando addEventListener vía postMessage. Por eso el video nunca
+        // avisaba que había terminado. Ahora, al cargar el iframe, se manda ese comando.
         val html = """
             <!DOCTYPE html><html><head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -428,16 +444,21 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             <iframe id="ytplayer" src="$embedUrl" allow="autoplay; encrypted-media" allowfullscreen></iframe>
             <script>
             var player = document.getElementById('ytplayer');
+            function onPlayerFrameLoad() {
+                player.contentWindow.postMessage(JSON.stringify({event: 'listening', id: 1}), '*');
+                player.contentWindow.postMessage(JSON.stringify({
+                    event: 'command', func: 'addEventListener', args: ['onStateChange']
+                }), '*');
+            }
+            player.addEventListener('load', onPlayerFrameLoad);
             window.addEventListener('message', function(event) {
                 try {
                     var data = JSON.parse(event.data);
+                    // 0 = ended, según la YouTube IFrame Player API.
                     if (data.event === 'onStateChange' && data.info === 0) {
                         AndroidBridge.onYoutubeEnded();
                     }
                 } catch (e) {}
-            });
-            player.addEventListener('load', function() {
-                player.contentWindow.postMessage(JSON.stringify({event: 'listening', id: 1}), '*');
             });
             </script>
             </body></html>
@@ -459,12 +480,20 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         }
     }
 
-    /** Puente para que la página de YouTube nos avise cuándo terminó el video. */
+    /**
+     * Puente para que la página de YouTube nos avise cuándo terminó el video de verdad.
+     * FIX: antes llamaba a nextStep() (salto manual), que compite con el avance
+     * automático del countdown normal. Ahora el countdown del intervalo YOUTUBE ya no
+     * avanza solo al llegar a 00:00 (ver TimerService.startCountDown) — el video manda,
+     * así que acá se llama a onYoutubeVideoEnded(), que es quien realmente decide avanzar
+     * (corta el countdown si el video terminó antes, o resuelve la espera si ya estaba
+     * en 00:00 esperando este aviso).
+     */
     private inner class YoutubeBridge {
         @JavascriptInterface
         fun onYoutubeEnded() {
             runOnUiThread {
-                if (!controlsLocked) timerService?.nextStep()
+                if (!controlsLocked) timerService?.onYoutubeVideoEnded()
             }
         }
     }

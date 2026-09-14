@@ -30,7 +30,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val btnNewWorkout = view.findViewById<TextView>(R.id.btnNewWorkoutHome)
 
         adapter = ExerciseAdapter(
-            onClick = { exercise -> startActivity(TimerActivity.startWithExercise(requireContext(), exercise)) },
+            onClick = { exercise -> startActivity(TimerActivity.startWithExercise(requireContext(), exercise.id)) },
             onFavouriteClick = { exercise ->
                 Repository.toggleFavourite(exercise.id)
                 refresh(tvOverviewCount, tvOverviewDetail, rvQuickStart, tvEmptyQuickStart)

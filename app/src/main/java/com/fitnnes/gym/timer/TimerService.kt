@@ -4,6 +4,7 @@ import android.app.*
 import android.content.*
 import android.os.*
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.fitnnes.gym.R
 import com.fitnnes.gym.data.AppPrefs
@@ -65,6 +66,7 @@ class TimerService : Service() {
 
     private val binder = TimerBinder()
     private var countDownTimer: CountDownTimer? = null
+    private var youtubeSafetyTimer: CountDownTimer? = null
     private var timerListener: TimerListener? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -90,22 +92,35 @@ class TimerService : Service() {
     companion object {
         const val CHANNEL_ID = "timer_channel"
         const val NOTIFICATION_ID = 1
-        const val EXTRA_EXERCISE = "EXTRA_EXERCISE"
-        const val EXTRA_EXERCISE_PLAN = "EXTRA_EXERCISE_PLAN"
+        private const val TAG = "TimerService"
+        const val EXTRA_EXERCISE_ID = "EXTRA_EXERCISE_ID"
+        const val EXTRA_EXERCISE_PLAN_ID = "EXTRA_EXERCISE_PLAN_ID"
         const val EXTRA_BUNDLE = "EXTRA_BUNDLE"
 
-        fun startWithExercise(context: Context, exercise: Exercise): Intent {
+        // Red de seguridad MUY generosa para intervalos con video de YouTube: nunca
+        // debería dispararse con un video real (aunque dure una hora), solo evita que
+        // el entrenamiento quede trabado para siempre si el bridge JS falla del todo.
+        private const val YOUTUBE_SAFETY_TIMEOUT_MS = 3 * 60 * 60 * 1000L // 3 horas
+
+        // FIX: antes se mandaba el Exercise/ExercisePlan COMPLETO (Parcelable, con las
+        // imágenes en base64 embebidas) por el Intent. Con varios intervalos con imagen
+        // eso supera el límite del buffer de transacciones Binder (~1MB) y tira
+        // TransactionTooLargeException -> el service ni arranca, sin crash visible, y
+        // el entrenamiento "no inicia". Ahora solo viaja el id (String, liviano) y acá
+        // abajo se resuelve el objeto completo contra el Repository en memoria (mismo
+        // proceso, sin Binder de por medio).
+        fun startWithExercise(context: Context, exerciseId: String): Intent {
             return Intent(context, TimerService::class.java).apply {
                 val bundle = Bundle()
-                bundle.putParcelable(EXTRA_EXERCISE, exercise)
+                bundle.putString(EXTRA_EXERCISE_ID, exerciseId)
                 putExtra(EXTRA_BUNDLE, bundle)
             }
         }
 
-        fun startWithPlan(context: Context, plan: ExercisePlan): Intent {
+        fun startWithPlan(context: Context, planId: String): Intent {
             return Intent(context, TimerService::class.java).apply {
                 val bundle = Bundle()
-                bundle.putParcelable(EXTRA_EXERCISE_PLAN, plan)
+                bundle.putString(EXTRA_EXERCISE_PLAN_ID, planId)
                 putExtra(EXTRA_BUNDLE, bundle)
             }
         }
@@ -125,8 +140,24 @@ class TimerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.getBundleExtra(EXTRA_BUNDLE)?.let { bundle ->
-            bundle.getParcelable<Exercise>(EXTRA_EXERCISE)?.let { startTimerWithExercise(it) }
-            bundle.getParcelable<ExercisePlan>(EXTRA_EXERCISE_PLAN)?.let { startTimerWithPlan(it) }
+            bundle.getString(EXTRA_EXERCISE_ID)?.let { id ->
+                val ex = Repository.getExercise(id)
+                if (ex != null) {
+                    startTimerWithExercise(ex)
+                } else {
+                    Log.e(TAG, "No se encontró el ejercicio id=$id en el Repository")
+                    stopSelf()
+                }
+            }
+            bundle.getString(EXTRA_EXERCISE_PLAN_ID)?.let { id ->
+                val plan = Repository.getPlan(id)
+                if (plan != null) {
+                    startTimerWithPlan(plan)
+                } else {
+                    Log.e(TAG, "No se encontró el plan id=$id en el Repository")
+                    stopSelf()
+                }
+            }
         }
         return START_STICKY
     }
@@ -216,7 +247,7 @@ class TimerService : Service() {
         remainingTime = step.duration
         notifyState()
         announcePhase(step)
-        startCountDown(step.duration)
+        startCountDown(step.duration, step.mediaType)
         updateNotification(step)
     }
 
@@ -232,8 +263,10 @@ class TimerService : Service() {
         if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "phase")
     }
 
-    private fun startCountDown(seconds: Int) {
+    private fun startCountDown(seconds: Int, mediaType: MediaType = MediaType.NONE) {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
+        val isYoutubeStep = mediaType == MediaType.YOUTUBE
         countDownTimer = object : CountDownTimer(seconds * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
                 remainingTime = ((millisUntilFinished + 999) / 1000).toInt()
@@ -247,17 +280,56 @@ class TimerService : Service() {
 
             override fun onFinish() {
                 remainingTime = 0
-                planElapsedSeconds += steps.getOrNull(stepIndex)?.duration ?: 0
-                stepIndex++
-                if (stepIndex < steps.size) {
-                    val prevRound = currentRound
-                    updateRoundIfNeeded()
-                    runStep()
+                notifyState()
+                if (isYoutubeStep) {
+                    // No avanzamos solos: el video de YouTube manda. Esperamos el aviso
+                    // real de fin de video (onYoutubeVideoEnded, desde TimerActivity) o,
+                    // si el bridge falla del todo, la red de seguridad de 3 horas.
+                    Log.d(TAG, "Paso YOUTUBE llegó a 00:00, esperando fin real del video")
+                    startYoutubeSafetyTimer()
                 } else {
-                    onExerciseFinished()
+                    advanceStep()
                 }
             }
         }.start()
+    }
+
+    /** Red de seguridad ante fallas del bridge JS de YouTube (ver companion). */
+    private fun startYoutubeSafetyTimer() {
+        youtubeSafetyTimer?.cancel()
+        youtubeSafetyTimer = object : CountDownTimer(YOUTUBE_SAFETY_TIMEOUT_MS, YOUTUBE_SAFETY_TIMEOUT_MS) {
+            override fun onTick(millisUntilFinished: Long) {}
+            override fun onFinish() {
+                Log.w(TAG, "Timeout de seguridad de YouTube alcanzado, avanzando igual")
+                advanceStep()
+            }
+        }.start()
+    }
+
+    /**
+     * Llamado desde TimerActivity cuando el bridge JS del WebView detecta que el video
+     * de YouTube terminó de verdad. Si el video termina antes de que se acabe el tiempo
+     * mostrado, corta el countdown ahí mismo; si ya estaba esperando (countdown en 0),
+     * avanza directo.
+     */
+    fun onYoutubeVideoEnded() {
+        youtubeSafetyTimer?.cancel()
+        countDownTimer?.cancel()
+        advanceStep()
+    }
+
+    /** Avanza al siguiente paso/intervalo, o termina el ejercicio si no queda ninguno. */
+    private fun advanceStep() {
+        countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
+        planElapsedSeconds += steps.getOrNull(stepIndex)?.duration ?: 0
+        stepIndex++
+        if (stepIndex < steps.size) {
+            updateRoundIfNeeded()
+            runStep()
+        } else {
+            onExerciseFinished()
+        }
     }
 
     private fun updateRoundIfNeeded() {
@@ -306,6 +378,7 @@ class TimerService : Service() {
     fun pauseTimer() {
         if (isRunning && !isPaused) {
             countDownTimer?.cancel()
+            youtubeSafetyTimer?.cancel()
             isPaused = true
             isRunning = false
             notifyState()
@@ -316,13 +389,15 @@ class TimerService : Service() {
         if (isPaused) {
             isPaused = false
             isRunning = true
-            startCountDown(remainingTime)
+            val currentMediaType = steps.getOrNull(stepIndex)?.mediaType ?: MediaType.NONE
+            startCountDown(remainingTime, currentMediaType)
             notifyState()
         }
     }
 
     fun skipPhase() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         planElapsedSeconds += (steps.getOrNull(stepIndex)?.duration ?: 0) - remainingTime
         remainingTime = 0
         stepIndex++
@@ -337,6 +412,7 @@ class TimerService : Service() {
     /** Reinicia el ejercicio actual desde el principio. */
     fun restartExercise() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         stepIndex = 0
         currentRound = 1
         planElapsedSeconds = sessionStartElapsed
@@ -349,6 +425,7 @@ class TimerService : Service() {
      */
     fun previousStep() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         if (stepIndex > 0) {
             stepIndex--
             planElapsedSeconds = (planElapsedSeconds - (steps.getOrNull(stepIndex)?.duration ?: 0)).coerceAtLeast(0)
@@ -365,6 +442,7 @@ class TimerService : Service() {
      */
     fun nextStep() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         planElapsedSeconds += (steps.getOrNull(stepIndex)?.duration ?: 0) - remainingTime
         stepIndex++
         if (stepIndex < steps.size) {
@@ -379,6 +457,7 @@ class TimerService : Service() {
     fun previousExercise() {
         if (currentExerciseIndex > 0) {
             countDownTimer?.cancel()
+            youtubeSafetyTimer?.cancel()
             currentExerciseIndex--
             planElapsedSeconds = 0
             loadCurrentExercise()
@@ -390,6 +469,7 @@ class TimerService : Service() {
     /** Salta al siguiente ejercicio del plan. */
     fun nextExercise() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         if (currentExerciseIndex < planExercises.size - 1) {
             currentExerciseIndex++
             planElapsedSeconds = 0
@@ -401,6 +481,7 @@ class TimerService : Service() {
 
     fun skipToFirstExercise() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         currentExerciseIndex = 0
         planElapsedSeconds = 0
         loadCurrentExercise()
@@ -408,6 +489,7 @@ class TimerService : Service() {
 
     fun skipToLastExercise() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         currentExerciseIndex = (planExercises.size - 1).coerceAtLeast(0)
         planElapsedSeconds = 0
         loadCurrentExercise()
@@ -415,6 +497,7 @@ class TimerService : Service() {
 
     fun stopTimer() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         currentPhase = TimerPhase.IDLE
         isRunning = false
         isPaused = false
@@ -518,6 +601,7 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         countDownTimer?.cancel()
+        youtubeSafetyTimer?.cancel()
         wakeLock?.release()
         tts?.stop()
         tts?.shutdown()

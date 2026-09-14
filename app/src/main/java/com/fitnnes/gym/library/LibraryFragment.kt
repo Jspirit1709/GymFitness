@@ -51,7 +51,7 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
         val etSearch = view.findViewById<EditText>(R.id.etSearch)
 
         exerciseAdapter = ExerciseAdapter(
-            onClick = { exercise -> startActivity(TimerActivity.startWithExercise(requireContext(), exercise)) },
+            onClick = { exercise -> startActivity(TimerActivity.startWithExercise(requireContext(), exercise.id)) },
             onFavouriteClick = { exercise ->
                 Repository.toggleFavourite(exercise.id)
                 refreshExercises(rvExercises, tvEmpty)
@@ -64,7 +64,7 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
         rvExercises.adapter = exerciseAdapter
 
         planAdapter = PlanAdapter(
-            onClick = { plan -> startActivity(TimerActivity.startWithPlan(requireContext(), plan)) },
+            onClick = { plan -> startActivity(TimerActivity.startWithPlan(requireContext(), plan.id)) },
             onEditClick = { plan ->
                 startActivity(CreatePlanActivity.editIntent(requireContext(), plan.id))
             }
