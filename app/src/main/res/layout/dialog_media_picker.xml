@@ -58,6 +58,36 @@
                 android:src="@drawable/ic_edit"
                 app:tint="@color/text_secondary" />
 
+    <RadioGroup
+        android:id="@+id/rgMediaType"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp">
+
+        <RadioButton
+            android:id="@+id/rbTypeImage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="Imagen" />
+
+        <RadioButton
+            android:id="@+id/rbTypeVideo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="Video" />
+
+        <RadioButton
+            android:id="@+id/rbTypeYoutube"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="YouTube" />
+    </RadioGroup>
+
             <EditText
                 android:id="@+id/etMediaUrl"
                 android:layout_width="0dp"

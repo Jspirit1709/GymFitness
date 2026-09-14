@@ -1,10 +1,12 @@
 package com.fitnnes.gym.timer
 
 import android.content.*
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.*
 import android.view.View
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -64,6 +66,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private var mediaPanelVisible = false
     private var currentMediaUri: String? = null
     private var currentMediaType: MediaType = MediaType.NONE
+    private var currentVideoPlayer: MediaPlayer? = null
 
     companion object {
         fun startWithExercise(context: Context, exercise: Exercise): Intent {
@@ -126,6 +129,9 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
 
         webMedia.settings.javaScriptEnabled = true
         webMedia.settings.mediaPlaybackRequiresUserGesture = false
+        webMedia.settings.domStorageEnabled = true
+        // Puente JS para que la página de YouTube nos avise cuándo termina el video.
+        webMedia.addJavascriptInterface(YoutubeBridge(), "AndroidBridge")
 
         btnToggleMedia.setOnClickListener {
             mediaPanelVisible = !mediaPanelVisible
@@ -155,6 +161,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             soundOn = !soundOn
             AppPrefs.soundEnabled = soundOn
             btnSound.setImageResource(if (soundOn) R.drawable.ic_sound_on else R.drawable.ic_sound_off)
+            applySoundState()
         }
         btnSound.setImageResource(if (soundOn) R.drawable.ic_sound_on else R.drawable.ic_sound_off)
     }
@@ -167,7 +174,6 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         btnNext.alpha = alpha
         btnSkipEnd.alpha = alpha
         btnStop.alpha = alpha
-        // btnPauseResume se mantiene siempre accesible (como en el original)
     }
 
     private fun loadIntentData() {
@@ -272,13 +278,11 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         ivPhaseIcon.visibility = if (hasMedia && mediaPanelVisible) View.GONE else View.VISIBLE
 
         if (!hasMedia) {
-            // Sin media para este paso: ocultamos el panel si estaba abierto.
             if (mediaPanelVisible) {
                 mediaPanelVisible = false
             }
             renderMediaPanel()
         } else if (mediaChanged) {
-            // Cambió el paso/ejercicio: refrescamos el contenido si el panel está abierto.
             renderMediaPanel()
         }
     }
@@ -311,20 +315,26 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
                 runCatching {
                     videoMedia.setMediaController(MediaController(this).apply { setAnchorView(videoMedia) })
                     videoMedia.setVideoURI(Uri.parse(uri))
-                    videoMedia.setOnPreparedListener { it.isLooping = true }
+                    videoMedia.setOnPreparedListener { mp ->
+                        // Punto sonido: guardamos el MediaPlayer para poder subir/bajar el
+                        // volumen real cuando el usuario toca el botón de sonido.
+                        currentVideoPlayer = mp
+                        mp.isLooping = false
+                        applySoundState()
+                        // Punto auto-avance: si el video termina antes que el tiempo del
+                        // intervalo, pasamos solos al siguiente paso.
+                        mp.setOnCompletionListener {
+                            runOnUiThread {
+                                if (!controlsLocked) timerService?.nextStep()
+                            }
+                        }
+                    }
                     videoMedia.start()
                 }
             }
             MediaType.YOUTUBE -> {
                 webMedia.visibility = View.VISIBLE
-                val embedUrl = MediaUtils.youtubeEmbedUrl(uri)
-                if (embedUrl != null) {
-                    webMedia.loadUrl(embedUrl)
-                } else {
-                    webMedia.visibility = View.GONE
-                    mediaContainer.visibility = View.GONE
-                    ivPhaseIcon.visibility = View.VISIBLE
-                }
+                loadYoutube(uri)
             }
             MediaType.NONE -> {
                 mediaContainer.visibility = View.GONE
@@ -333,8 +343,70 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         }
     }
 
+    /**
+     * Carga el video de YouTube dentro de una página HTML mínima que envuelve el iframe
+     * del embed. Esto permite escuchar los eventos del reproductor (onStateChange) vía la
+     * API de postMessage de YouTube para: 1) detectar cuándo termina el video y pasar solo
+     * al siguiente intervalo, y 2) mutear/desmutear según el botón de sonido.
+     */
+    private fun loadYoutube(url: String) {
+        val embedUrl = MediaUtils.youtubeEmbedUrl(url, muted = !soundOn)
+        if (embedUrl == null) {
+            webMedia.visibility = View.GONE
+            mediaContainer.visibility = View.GONE
+            ivPhaseIcon.visibility = View.VISIBLE
+            return
+        }
+        val html = """
+            <!DOCTYPE html><html><head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>html,body{margin:0;padding:0;background:#000;height:100%;}
+            iframe{width:100%;height:100%;border:0;position:fixed;top:0;left:0;}</style>
+            </head><body>
+            <iframe id="ytplayer" src="$embedUrl" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+            <script>
+            var player = document.getElementById('ytplayer');
+            window.addEventListener('message', function(event) {
+                try {
+                    var data = JSON.parse(event.data);
+                    if (data.event === 'onStateChange' && data.info === 0) {
+                        AndroidBridge.onYoutubeEnded();
+                    }
+                } catch (e) {}
+            });
+            player.addEventListener('load', function() {
+                player.contentWindow.postMessage(JSON.stringify({event: 'listening', id: 1}), '*');
+            });
+            </script>
+            </body></html>
+        """.trimIndent()
+        // baseUrl = youtube.com para que el postMessage entre el iframe y esta página
+        // funcione bien con los permisos de origen que espera el player embebido.
+        webMedia.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "utf-8", null)
+    }
+
+    /** Aplica el estado actual de soundOn a la media que esté reproduciéndose ahora. */
+    private fun applySoundState() {
+        val volume = if (soundOn) 1f else 0f
+        runCatching { currentVideoPlayer?.setVolume(volume, volume) }
+        if (currentMediaType == MediaType.YOUTUBE && mediaPanelVisible && !currentMediaUri.isNullOrBlank()) {
+            loadYoutube(currentMediaUri!!)
+        }
+    }
+
+    /** Puente para que la página de YouTube nos avise cuándo terminó el video. */
+    private inner class YoutubeBridge {
+        @JavascriptInterface
+        fun onYoutubeEnded() {
+            runOnUiThread {
+                if (!controlsLocked) timerService?.nextStep()
+            }
+        }
+    }
+
     private fun stopVideoPlayback() {
         runCatching { if (videoMedia.isPlaying) videoMedia.stopPlayback() }
+        currentVideoPlayer = null
     }
 
     private fun formatTime(seconds: Int): String {

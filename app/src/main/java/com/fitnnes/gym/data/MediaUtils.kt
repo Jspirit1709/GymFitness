@@ -5,16 +5,16 @@ import com.fitnnes.gym.workoutdomain.MediaType
 /**
  * Utilidades para detectar e interpretar enlaces/URIs de media (imagen, video o YouTube)
  * pegados por el usuario o elegidos desde el dispositivo.
+ *
+ * NOTA (punto 3): esta detección automática por extensión sigue existiendo como sugerencia
+ * inicial, pero ya no es la única fuente de verdad — en MediaPickerDialog el usuario puede
+ * marcar manualmente Imagen/Video/YouTube, así que un link sin extensión reconocible o de
+ * un hosting raro también funciona si el usuario lo indica.
  */
 object MediaUtils {
 
-    private val VIDEO_EXTENSIONS = listOf(".mp4", ".mov", ".webm", ".mkv", ".3gp", ".m4v")
+    private val VIDEO_EXTENSIONS = listOf(".mp4", ".mov", ".webm", ".mkv", ".3gp", ".m4v", ".avi", ".ts")
 
-    /**
-     * Detecta el tipo de media a partir de una URL/URI. [fromFilePicker] indica si el valor
-     * viene del selector de archivos del dispositivo (en cuyo caso ya conocemos si es
-     * imagen o video por el mime-type elegido) en lugar de un link pegado a mano.
-     */
     fun detectMediaType(value: String, isVideoHint: Boolean = false): MediaType {
         val lower = value.lowercase()
         return when {
@@ -38,9 +38,14 @@ object MediaUtils {
         return regex.find(url)?.groupValues?.getOrNull(1)
     }
 
-    /** URL de embed lista para cargar en un WebView, o null si no es un link de YouTube válido. */
-    fun youtubeEmbedUrl(url: String): String? {
+    /**
+     * URL de embed lista para cargar en un WebView, o null si no es un link de YouTube válido.
+     * [muted] controla si arranca silenciado (necesario para autoplay en algunos casos) y
+     * [enablejsapi] queda siempre activo para poder escuchar el evento de fin de video.
+     */
+    fun youtubeEmbedUrl(url: String, muted: Boolean = false): String? {
         val id = youtubeVideoId(url) ?: return null
-        return "https://www.youtube.com/embed/$id?autoplay=1&playsinline=1&rel=0&modestbranding=1"
+        val muteParam = if (muted) 1 else 0
+        return "https://www.youtube.com/embed/$id?autoplay=1&playsinline=1&rel=0&modestbranding=1&mute=$muteParam&enablejsapi=1"
     }
 }
