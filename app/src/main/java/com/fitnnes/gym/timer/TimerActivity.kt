@@ -1,9 +1,12 @@
 package com.fitnnes.gym.timer
 
 import android.content.*
+import android.graphics.BitmapFactory
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.*
+import android.util.Base64
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
@@ -69,6 +72,8 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private var currentVideoPlayer: MediaPlayer? = null
 
     companion object {
+        private const val TAG = "TimerActivity"
+
         fun startWithExercise(context: Context, exercise: Exercise): Intent {
             return Intent(context, TimerActivity::class.java).apply {
                 val bundle = Bundle()
@@ -132,6 +137,21 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         webMedia.settings.domStorageEnabled = true
         // Puente JS para que la página de YouTube nos avise cuándo termina el video.
         webMedia.addJavascriptInterface(YoutubeBridge(), "AndroidBridge")
+
+        // FIX: sin esto, si un video local falla (uri sin permiso persistente, archivo
+        // corrupto, etc), Android mostraba su diálogo de error nativo tapando el timer
+        // ("no inicia el entrenamiento"). Ahora lo interceptamos, lo logueamos, y
+        // seguimos el entrenamiento sin video en vez de bloquear la pantalla.
+        videoMedia.setOnErrorListener { _, what, extra ->
+            Log.e(TAG, "VideoView error: what=$what extra=$extra uri=$currentMediaUri")
+            runOnUiThread {
+                videoMedia.visibility = View.GONE
+                mediaContainer.visibility = View.GONE
+                ivPhaseIcon.visibility = View.VISIBLE
+                stopVideoPlayback()
+            }
+            true // consumido: evita el diálogo de error por defecto del sistema
+        }
 
         btnToggleMedia.setOnClickListener {
             mediaPanelVisible = !mediaPanelVisible
@@ -287,58 +307,98 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         }
     }
 
-    /** Muestra u oculta el panel flotante de media, y carga el contenido correcto según el tipo. */
+    /**
+     * Muestra u oculta el panel flotante de media, y carga el contenido correcto según el tipo.
+     * FIX: toda la función está envuelta en try/catch para que un fallo con CUALQUIER tipo de
+     * media (imagen, video o YouTube) nunca bloquee ni "cuelgue" el entrenamiento completo —
+     * en el peor caso, se oculta el panel de media y el timer sigue corriendo solo.
+     */
     private fun renderMediaPanel() {
-        if (!mediaPanelVisible || currentMediaUri.isNullOrBlank()) {
-            mediaContainer.visibility = View.GONE
-            ivPhaseIcon.visibility = if (btnToggleMedia.visibility == View.VISIBLE) View.VISIBLE else ivPhaseIcon.visibility
-            stopVideoPlayback()
-            webMedia.loadUrl("about:blank")
-            return
-        }
-
-        mediaContainer.visibility = View.VISIBLE
-        ivPhaseIcon.visibility = View.GONE
-        ivMedia.visibility = View.GONE
-        videoMedia.visibility = View.GONE
-        webMedia.visibility = View.GONE
-        stopVideoPlayback()
-
-        val uri = currentMediaUri ?: return
-        when (currentMediaType) {
-            MediaType.IMAGE_BASE64 -> {
-                ivMedia.visibility = View.VISIBLE
-                runCatching { Glide.with(this).load(uri).into(ivMedia) }
+        try {
+            if (!mediaPanelVisible || currentMediaUri.isNullOrBlank()) {
+                mediaContainer.visibility = View.GONE
+                ivPhaseIcon.visibility = if (btnToggleMedia.visibility == View.VISIBLE) View.VISIBLE else ivPhaseIcon.visibility
+                stopVideoPlayback()
+                webMedia.loadUrl("about:blank")
+                return
             }
-            MediaType.VIDEO_FILE -> {
-                videoMedia.visibility = View.VISIBLE
-                runCatching {
-                    videoMedia.setMediaController(MediaController(this).apply { setAnchorView(videoMedia) })
-                    videoMedia.setVideoURI(Uri.parse(uri))
-                    videoMedia.setOnPreparedListener { mp ->
-                        // Punto sonido: guardamos el MediaPlayer para poder subir/bajar el
-                        // volumen real cuando el usuario toca el botón de sonido.
-                        currentVideoPlayer = mp
-                        mp.isLooping = false
-                        applySoundState()
-                        // Punto auto-avance: si el video termina antes que el tiempo del
-                        // intervalo, pasamos solos al siguiente paso.
-                        mp.setOnCompletionListener {
-                            runOnUiThread {
-                                if (!controlsLocked) timerService?.nextStep()
+
+            mediaContainer.visibility = View.VISIBLE
+            ivPhaseIcon.visibility = View.GONE
+            ivMedia.visibility = View.GONE
+            videoMedia.visibility = View.GONE
+            webMedia.visibility = View.GONE
+            stopVideoPlayback()
+
+            val uri = currentMediaUri ?: return
+            when (currentMediaType) {
+                MediaType.IMAGE_BASE64 -> {
+                    ivMedia.visibility = View.VISIBLE
+                    runCatching {
+                        Glide.with(this).load(uri).into(ivMedia)
+                    }.onFailure { e ->
+                        Log.e(TAG, "Glide no pudo cargar la imagen, probando decode manual de base64", e)
+                        // FIX: media importada del zip puede venir como base64 puro sin el
+                        // prefijo "data:image/...;base64,", lo cual Glide no siempre resuelve.
+                        // Fallback: decodificamos a mano en vez de dejar la imagen rota/perdida.
+                        runCatching {
+                            val cleanBase64 = uri.substringAfter(",", uri)
+                            val bytes = Base64.decode(cleanBase64, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            if (bitmap != null) {
+                                ivMedia.setImageBitmap(bitmap)
+                            } else {
+                                ivMedia.visibility = View.GONE
                             }
+                        }.onFailure { e2 ->
+                            Log.e(TAG, "Tampoco se pudo decodificar como base64 (len=${uri.length})", e2)
+                            ivMedia.visibility = View.GONE
                         }
                     }
-                    videoMedia.start()
+                }
+                MediaType.VIDEO_FILE -> {
+                    videoMedia.visibility = View.VISIBLE
+                    // FIX: antes, start() estaba FUERA de este runCatching. Si setVideoURI
+                    // fallaba (ej. URI de contenido sin permiso persistente tras reimportar),
+                    // el error se tragaba en silencio y luego se llamaba start() igual sobre
+                    // un player mal preparado -> Android mostraba su diálogo nativo de error,
+                    // tapando el timer y dando la sensación de que "no inicia".
+                    runCatching {
+                        videoMedia.setMediaController(MediaController(this).apply { setAnchorView(videoMedia) })
+                        videoMedia.setVideoURI(Uri.parse(uri))
+                        videoMedia.setOnPreparedListener { mp ->
+                            currentVideoPlayer = mp
+                            mp.isLooping = false
+                            applySoundState()
+                            mp.setOnCompletionListener {
+                                runOnUiThread {
+                                    if (!controlsLocked) timerService?.nextStep()
+                                }
+                            }
+                        }
+                        videoMedia.start()
+                    }.onFailure { e ->
+                        Log.e(TAG, "Error al reproducir video local (uri=$uri)", e)
+                        videoMedia.visibility = View.GONE
+                        mediaContainer.visibility = View.GONE
+                        ivPhaseIcon.visibility = View.VISIBLE
+                    }
+                }
+                MediaType.YOUTUBE -> {
+                    webMedia.visibility = View.VISIBLE
+                    loadYoutube(uri)
+                }
+                MediaType.NONE -> {
+                    mediaContainer.visibility = View.GONE
+                    ivPhaseIcon.visibility = View.VISIBLE
                 }
             }
-            MediaType.YOUTUBE -> {
-                webMedia.visibility = View.VISIBLE
-                loadYoutube(uri)
-            }
-            MediaType.NONE -> {
+        } catch (e: Exception) {
+            Log.e(TAG, "Fallo inesperado en renderMediaPanel, ocultando media para no bloquear el entrenamiento", e)
+            runCatching {
                 mediaContainer.visibility = View.GONE
                 ivPhaseIcon.visibility = View.VISIBLE
+                stopVideoPlayback()
             }
         }
     }
@@ -350,7 +410,9 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
      * al siguiente intervalo, y 2) mutear/desmutear según el botón de sonido.
      */
     private fun loadYoutube(url: String) {
-        val embedUrl = MediaUtils.youtubeEmbedUrl(url, muted = !soundOn)
+        val embedUrl = runCatching { MediaUtils.youtubeEmbedUrl(url, muted = !soundOn) }
+            .onFailure { e -> Log.e(TAG, "Error generando embed de YouTube (url=$url)", e) }
+            .getOrNull()
         if (embedUrl == null) {
             webMedia.visibility = View.GONE
             mediaContainer.visibility = View.GONE
@@ -380,15 +442,18 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             </script>
             </body></html>
         """.trimIndent()
-        // baseUrl = youtube.com para que el postMessage entre el iframe y esta página
-        // funcione bien con los permisos de origen que espera el player embebido.
-        webMedia.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "utf-8", null)
+        runCatching {
+            // baseUrl = youtube.com para que el postMessage entre el iframe y esta página
+            // funcione bien con los permisos de origen que espera el player embebido.
+            webMedia.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "utf-8", null)
+        }.onFailure { e -> Log.e(TAG, "Error cargando WebView de YouTube", e) }
     }
 
     /** Aplica el estado actual de soundOn a la media que esté reproduciéndose ahora. */
     private fun applySoundState() {
         val volume = if (soundOn) 1f else 0f
         runCatching { currentVideoPlayer?.setVolume(volume, volume) }
+            .onFailure { e -> Log.e(TAG, "Error aplicando volumen a MediaPlayer", e) }
         if (currentMediaType == MediaType.YOUTUBE && mediaPanelVisible && !currentMediaUri.isNullOrBlank()) {
             loadYoutube(currentMediaUri!!)
         }
@@ -406,6 +471,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
 
     private fun stopVideoPlayback() {
         runCatching { if (videoMedia.isPlaying) videoMedia.stopPlayback() }
+            .onFailure { e -> Log.e(TAG, "Error deteniendo video", e) }
         currentVideoPlayer = null
     }
 
