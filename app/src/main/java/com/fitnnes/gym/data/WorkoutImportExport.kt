@@ -54,19 +54,58 @@ object WorkoutImportExport {
         return gson.toJson(ImportRootDto(exercises = dtoList))
     }
 
+    /**
+     * Devuelve true solo si el string es una URI/URL realmente reproducible por el
+     * dispositivo (tiene esquema conocido). Un simple nombre de archivo suelto como
+     * "press_banca_plano_barra.jpg" (sobrante del exportador original, sin ruta real)
+     * NO cuenta como reproducible: antes se estaba tratando como VIDEO_FILE válido
+     * y rompía la reproducción de lo que en realidad eran imágenes.
+     */
+    private fun isPlayableUri(uri: String?): Boolean {
+        if (uri.isNullOrBlank()) return false
+        val lower = uri.trim().lowercase()
+        return lower.startsWith("http://") ||
+                lower.startsWith("https://") ||
+                lower.startsWith("content://") ||
+                lower.startsWith("file://") ||
+                lower.startsWith("android.resource://")
+    }
+
+    /**
+     * FIX: antes, cualquier sourceUri no vacío (incluyendo un simple nombre de archivo
+     * sin esquema, como "foto.jpg") se clasificaba como VIDEO_FILE, aunque el media
+     * fuera en realidad una imagen con su base64 embebido en encodedFile. Ahora:
+     *   1) Un link de YouTube siempre gana (aunque el mimeType no lo indique).
+     *   2) Si el mimeType es de imagen y hay encodedFile, se prioriza la imagen real
+     *      por sobre cualquier sourceUri sobrante/inválido.
+     *   3) Un sourceUri solo cuenta como video si es una URI/URL genuina reproducible
+     *      (con esquema http/https/content/file), nunca un nombre de archivo suelto.
+     *   4) Si nada de lo anterior aplica pero hay encodedFile, se usa como imagen
+     *      (fallback seguro).
+     */
     private fun resolveMedia(mediaId: String?, mediaMap: Map<String, ImportMediaDto>): Pair<String?, MediaType> {
         val media = mediaId?.let { mediaMap[it] } ?: return null to MediaType.NONE
-        return when {
-            !media.sourceUri.isNullOrBlank() && media.sourceUri.contains("youtu") ->
-                media.sourceUri to MediaType.YOUTUBE
-            !media.sourceUri.isNullOrBlank() ->
-                media.sourceUri to MediaType.VIDEO_FILE
-            !media.encodedFile.isNullOrBlank() -> {
-                val mime = media.mimeType ?: "image/jpeg"
-                "data:$mime;base64,${media.encodedFile}" to MediaType.IMAGE_BASE64
-            }
-            else -> null to MediaType.NONE
+
+        if (!media.sourceUri.isNullOrBlank() && media.sourceUri.contains("youtu", ignoreCase = true)) {
+            return media.sourceUri to MediaType.YOUTUBE
         }
+
+        val isImageMime = media.mimeType?.startsWith("image/", ignoreCase = true) == true
+        if (isImageMime && !media.encodedFile.isNullOrBlank()) {
+            val mime = media.mimeType ?: "image/jpeg"
+            return "data:$mime;base64,${media.encodedFile}" to MediaType.IMAGE_BASE64
+        }
+
+        if (isPlayableUri(media.sourceUri)) {
+            return media.sourceUri to MediaType.VIDEO_FILE
+        }
+
+        if (!media.encodedFile.isNullOrBlank()) {
+            val mime = media.mimeType ?: "image/jpeg"
+            return "data:$mime;base64,${media.encodedFile}" to MediaType.IMAGE_BASE64
+        }
+
+        return null to MediaType.NONE
     }
 
     private fun ImportExerciseDto.toExercise(mediaMap: Map<String, ImportMediaDto>): Exercise {
