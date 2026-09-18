@@ -79,6 +79,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private var mediaItems: List<MediaItem> = emptyList()
     private var mediaIndex = 0
     private var currentMediaKey = ""
+    private var lastNavClickTime = 0L
     private lateinit var btnMediaPrev: TextView
     private lateinit var btnMediaNext: TextView
     private lateinit var tvMediaCount: TextView
@@ -190,10 +191,10 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             val service = timerService ?: return@setOnClickListener
             if (service.getTimerState().isPaused) service.resumeTimer() else service.pauseTimer()
         }
-        btnSkipStart.setOnClickListener { if (!controlsLocked) timerService?.skipToFirstExercise() }
-        btnPrevious.setOnClickListener { if (!controlsLocked) timerService?.previousStep() }
-        btnNext.setOnClickListener { if (!controlsLocked) timerService?.nextStep() }
-        btnSkipEnd.setOnClickListener { if (!controlsLocked) timerService?.skipToLastExercise() }
+        btnSkipStart.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.skipToFirstExercise() }
+        btnPrevious.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.previousStep() }
+        btnNext.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.nextStep() }
+        btnSkipEnd.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.skipToLastExercise() }
         btnStop.setOnClickListener { if (!controlsLocked) { timerService?.stopTimer(); goToMenu() } }
 
         btnLock.setOnClickListener {
@@ -551,6 +552,14 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
                 if (!controlsLocked && mediaIndex == 0) timerService?.onYoutubeVideoEnded()
             }
         }
+    }
+
+    /** Evita que un solo toque dispare la accion 2 veces por rebote táctil. */
+    private fun debounceNav(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastNavClickTime < 350) return false
+        lastNavClickTime = now
+        return true
     }
 
     private fun stepMedia(delta: Int) {
