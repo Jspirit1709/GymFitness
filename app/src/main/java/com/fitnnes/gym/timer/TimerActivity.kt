@@ -11,6 +11,8 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import android.webkit.WebChromeClient
+import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.MediaController
@@ -39,6 +41,8 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private lateinit var tvExerciseName: TextView
     private lateinit var tvPhase: TextView
     private lateinit var tvTimer: TextView
+    private lateinit var tvReps: TextView
+    private lateinit var tvMediaInfo: TextView
     private lateinit var tvSet: TextView
     private lateinit var tvRemainingSmall: TextView
     private lateinit var tvNextExercise: TextView
@@ -112,6 +116,8 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         tvExerciseName = findViewById(R.id.tvExerciseName)
         tvPhase = findViewById(R.id.tvPhase)
         tvTimer = findViewById(R.id.tvTimer)
+        tvReps = findViewById(R.id.tvReps)
+        tvMediaInfo = findViewById(R.id.tvMediaInfo)
         tvSet = findViewById(R.id.tvSet)
         tvRemainingSmall = findViewById(R.id.tvRemainingSmall)
         tvNextExercise = findViewById(R.id.tvNextExercise)
@@ -139,6 +145,8 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         webMedia.settings.javaScriptEnabled = true
         webMedia.settings.mediaPlaybackRequiresUserGesture = false
         webMedia.settings.domStorageEnabled = true
+        webMedia.webViewClient = WebViewClient()
+        webMedia.webChromeClient = WebChromeClient()
         // Puente JS para que la página de YouTube nos avise cuándo termina el video.
         webMedia.addJavascriptInterface(YoutubeBridge(), "AndroidBridge")
 
@@ -253,6 +261,10 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         tvExerciseName.text = state.currentExerciseName
         tvTimer.text = formatTime(state.currentTime)
         tvRemainingSmall.text = formatTime(state.currentTime)
+        val repsText = state.repetitions?.let { "$it Rep." }
+        tvReps.visibility = if (repsText != null) View.VISIBLE else View.GONE
+        tvReps.text = repsText ?: ""
+        tvMediaInfo.text = listOfNotNull(repsText, formatTime(state.currentTime)).joinToString("   ·   ")
         tvSet.text = getString(R.string.set_format, state.currentRound, state.totalRounds)
 
         val phaseName = when (state.phase) {
@@ -421,20 +433,20 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
      * al siguiente intervalo, y 2) mutear/desmutear según el botón de sonido.
      */
     private fun loadYoutube(url: String) {
-        val embedUrl = runCatching { MediaUtils.youtubeEmbedUrl(url, muted = !soundOn) }
-            .onFailure { e -> Log.e(TAG, "Error generando embed de YouTube (url=$url)", e) }
+        val videoId = runCatching { MediaUtils.youtubeVideoId(url) }
+            .onFailure { e -> Log.e(TAG, "Error leyendo id de YouTube (url=$url)", e) }
             .getOrNull()
-        if (embedUrl == null) {
+        if (videoId == null) {
             webMedia.visibility = View.GONE
             mediaContainer.visibility = View.GONE
             ivPhaseIcon.visibility = View.VISIBLE
             return
         }
-        // FIX: antes solo se escuchaba pasivo (window.addEventListener('message', ...))
-        // sin nunca pedirle al iframe que empezara a emitir los eventos de estado — el
-        // player de YouTube no manda onStateChange a menos que se lo pidas explícitamente
-        // con el comando addEventListener vía postMessage. Por eso el video nunca
-        // avisaba que había terminado. Ahora, al cargar el iframe, se manda ese comando.
+        // YouTube rechaza el embed (error 152) si el origen se hace pasar por youtube.com.
+        // Usamos el id de la app como origen/referer HTTPS.
+        val origin = "https://$packageName"
+        val mute = if (soundOn) 0 else 1
+        val embedUrl = "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&mute=$mute&origin=$origin"
         val html = """
             <!DOCTYPE html><html><head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -449,14 +461,19 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
                 player.contentWindow.postMessage(JSON.stringify({
                     event: 'command', func: 'addEventListener', args: ['onStateChange']
                 }), '*');
+                player.contentWindow.postMessage(JSON.stringify({
+                    event: 'command', func: 'addEventListener', args: ['onError']
+                }), '*');
             }
             player.addEventListener('load', onPlayerFrameLoad);
             window.addEventListener('message', function(event) {
                 try {
                     var data = JSON.parse(event.data);
-                    // 0 = ended, según la YouTube IFrame Player API.
                     if (data.event === 'onStateChange' && data.info === 0) {
                         AndroidBridge.onYoutubeEnded();
+                    }
+                    if (data.event === 'onError') {
+                        AndroidBridge.onYoutubeError(String(data.info));
                     }
                 } catch (e) {}
             });
@@ -464,9 +481,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             </body></html>
         """.trimIndent()
         runCatching {
-            // baseUrl = youtube.com para que el postMessage entre el iframe y esta página
-            // funcione bien con los permisos de origen que espera el player embebido.
-            webMedia.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "utf-8", null)
+            webMedia.loadDataWithBaseURL(origin, html, "text/html", "utf-8", null)
         }.onFailure { e -> Log.e(TAG, "Error cargando WebView de YouTube", e) }
     }
 
@@ -490,6 +505,15 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
      * en 00:00 esperando este aviso).
      */
     private inner class YoutubeBridge {
+        @JavascriptInterface
+        fun onYoutubeError(code: String) {
+            runOnUiThread {
+                Log.w(TAG, "Embed de YouTube con error $code, cargando pagina normal en el WebView")
+                val id = currentMediaUri?.let { MediaUtils.youtubeVideoId(it) } ?: return@runOnUiThread
+                webMedia.loadUrl("https://m.youtube.com/watch?v=$id")
+            }
+        }
+
         @JavascriptInterface
         fun onYoutubeEnded() {
             runOnUiThread {

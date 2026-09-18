@@ -49,7 +49,8 @@ data class TimerState(
     val mediaUri: String? = null,
     val mediaType: MediaType = MediaType.NONE,
     val hasPreviousStep: Boolean = false,
-    val hasNextStep: Boolean = true
+    val hasNextStep: Boolean = true,
+    val repetitions: Int? = null
 )
 
 interface TimerListener {
@@ -547,7 +548,8 @@ class TimerService : Service() {
             mediaUri = mediaUri,
             mediaType = mediaType,
             hasPreviousStep = hasPrev,
-            hasNextStep = hasNext
+            hasNextStep = hasNext,
+            repetitions = step?.repetitions
         )
     }
 

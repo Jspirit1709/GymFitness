@@ -120,7 +120,40 @@ object Repository {
         if (imported.isEmpty()) return 0
         exercises.addAll(0, imported)
         saveExercises()
+        groupImportedIntoPlans(imported)
         return imported.size
+    }
+
+    private fun groupImportedIntoPlans(imported: List<Exercise>) {
+        // Agrupa por el texto antes de ":" (ej. "Lunes"), ignorando emojis y numeros iniciales.
+        val groups = LinkedHashMap<String, MutableList<Exercise>>()
+        for (ex in imported) {
+            val idx = ex.name.indexOf(':')
+            if (idx <= 0) continue
+            val key = ex.name.substring(0, idx)
+                .filter { it.isLetterOrDigit() || it == ' ' }
+                .replace(Regex("^[0-9\\s]+"), "")
+                .trim()
+            if (key.isEmpty() || key.length > 30) continue
+            groups.getOrPut(key) { mutableListOf() }.add(ex)
+        }
+        val base = System.currentTimeMillis()
+        var created = 0
+        for ((key, list) in groups) {
+            if (list.size < 2) continue
+            var name = "Plan - $key"
+            var n = 2
+            while (plans.any { it.name == name }) { name = "Plan - $key ($n)"; n++ }
+            plans.add(
+                ExercisePlan(
+                    name = name,
+                    exerciseIds = list.map { it.id },
+                    createdAt = base - created
+                )
+            )
+            created++
+        }
+        if (created > 0) savePlans()
     }
 
     /** Exporta todos los ejercicios actuales a un JSON descargable. */

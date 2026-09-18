@@ -132,6 +132,17 @@
                 android:textSize="96sp"
                 tools:text="00:30" />
 
+            <TextView
+                android:id="@+id/tvReps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/white"
+                android:textSize="40sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="8 Rep." />
+
             <ImageView
                 android:id="@+id/ivPhaseIcon"
                 android:layout_width="48dp"
@@ -312,5 +323,17 @@
             android:background="@drawable/bg_circle_dark"
             android:src="@drawable/ic_close"
             app:tint="@color/white" />
-    </FrameLayout>
+        <TextView
+            android:id="@+id/tvMediaInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#99000000"
+            android:gravity="center"
+            android:padding="8dp"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            tools:text="8 Rep.   ·   00:02" />
+        </FrameLayout>
 </FrameLayout>
