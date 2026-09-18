@@ -30,6 +30,7 @@ import com.fitnnes.gym.menu.MainActivity
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExercisePlan
 import com.fitnnes.gym.workoutdomain.MediaType
+import com.fitnnes.gym.workoutdomain.MediaItem
 
 class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
 
@@ -75,6 +76,12 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private var currentMediaUri: String? = null
     private var currentMediaType: MediaType = MediaType.NONE
     private var currentVideoPlayer: MediaPlayer? = null
+    private var mediaItems: List<MediaItem> = emptyList()
+    private var mediaIndex = 0
+    private var currentMediaKey = ""
+    private lateinit var btnMediaPrev: TextView
+    private lateinit var btnMediaNext: TextView
+    private lateinit var tvMediaCount: TextView
 
     companion object {
         private const val TAG = "TimerActivity"
@@ -140,6 +147,11 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         webMedia = findViewById(R.id.webMedia)
         btnToggleMedia = findViewById(R.id.btnToggleMedia)
         btnCloseMedia = findViewById(R.id.btnCloseMedia)
+        btnMediaPrev = findViewById(R.id.btnMediaPrev)
+        btnMediaNext = findViewById(R.id.btnMediaNext)
+        tvMediaCount = findViewById(R.id.tvMediaCount)
+        btnMediaPrev.setOnClickListener { stepMedia(-1) }
+        btnMediaNext.setOnClickListener { stepMedia(1) }
         planInfoLayout = findViewById(R.id.planInfoLayout)
 
         webMedia.settings.javaScriptEnabled = true
@@ -315,9 +327,24 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
             progressBar.progress = state.totalTime - state.currentTime
         }
 
-        val mediaChanged = state.mediaUri != currentMediaUri || state.mediaType != currentMediaType
-        currentMediaUri = state.mediaUri
-        currentMediaType = state.mediaType
+        val stateItems: List<MediaItem> = when {
+            state.mediaItems.isNotEmpty() -> state.mediaItems
+            !state.mediaUri.isNullOrBlank() && state.mediaType != MediaType.NONE ->
+                listOf(MediaItem(state.mediaUri.orEmpty(), state.mediaType))
+            else -> emptyList()
+        }
+        val newKey = stateItems.joinToString("|") { "${it.type.name}:${it.uri.hashCode()}" }
+        val mediaChanged = newKey != currentMediaKey
+        if (mediaChanged) {
+            currentMediaKey = newKey
+            mediaItems = stateItems
+            mediaIndex = 0
+            currentMediaUri = stateItems.firstOrNull()?.uri
+            currentMediaType = stateItems.firstOrNull()?.type ?: MediaType.NONE
+        }
+        updateMediaNav()
+        
+        
 
         val hasMedia = !state.mediaUri.isNullOrBlank() && state.mediaType != MediaType.NONE
         btnToggleMedia.visibility = if (hasMedia) View.VISIBLE else View.GONE
@@ -397,6 +424,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
                             mp.isLooping = false
                             applySoundState()
                             mp.setOnCompletionListener {
+                            if (mediaIndex != 0) return@setOnCompletionListener
                                 runOnUiThread {
                                     if (!controlsLocked) timerService?.nextStep()
                                 }
@@ -520,9 +548,29 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         @JavascriptInterface
         fun onYoutubeEnded() {
             runOnUiThread {
-                if (!controlsLocked) timerService?.onYoutubeVideoEnded()
+                if (!controlsLocked && mediaIndex == 0) timerService?.onYoutubeVideoEnded()
             }
         }
+    }
+
+    private fun stepMedia(delta: Int) {
+        if (mediaItems.size < 2) return
+        mediaIndex = (mediaIndex + delta + mediaItems.size) % mediaItems.size
+        val item = mediaItems[mediaIndex]
+        currentMediaUri = item.uri
+        currentMediaType = item.type
+        webMedia.loadUrl("about:blank")
+        updateMediaNav()
+        renderMediaPanel()
+    }
+
+    private fun updateMediaNav() {
+        val multi = mediaItems.size > 1
+        val v = if (multi) View.VISIBLE else View.GONE
+        btnMediaPrev.visibility = v
+        btnMediaNext.visibility = v
+        tvMediaCount.visibility = v
+        if (multi) tvMediaCount.text = "${mediaIndex + 1}/${mediaItems.size}"
     }
 
     private fun stopVideoPlayback() {

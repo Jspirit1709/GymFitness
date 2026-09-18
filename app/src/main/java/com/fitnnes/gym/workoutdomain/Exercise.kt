@@ -19,7 +19,8 @@ data class CustomInterval(
     var phaseType: PhaseType = PhaseType.WORK,
     var repetitions: Int? = null,
     var mediaUri: String? = null,
-    var mediaType: MediaType = MediaType.NONE
+    var mediaType: MediaType = MediaType.NONE,
+    var extraMedia: List<MediaItem> = emptyList()
 ) : Parcelable
 
 @Parcelize
@@ -41,8 +42,18 @@ data class Exercise(
     var rounds: Int = 1,
     var coolDownTime: Int = 0,
     var colorHex: String? = null,
-    var createdAt: Long = System.currentTimeMillis()
+    var createdAt: Long = System.currentTimeMillis(),
+    var extraMedia: List<MediaItem> = emptyList()
 ) : Parcelable {
+
+    /** Media principal (mediaUri) + las extra, en orden. */
+    @Suppress("USELESS_ELVIS")
+    fun allMedia(): List<MediaItem> {
+        val first = if (!mediaUri.isNullOrBlank() && mediaType != MediaType.NONE)
+            listOf(MediaItem(mediaUri.orEmpty(), mediaType)) else emptyList()
+        return first + (extraMedia ?: emptyList())
+    }
+
 
     fun getRoundDuration(): Int {
         return if (useCustomIntervals && customSequence.isNotEmpty()) {

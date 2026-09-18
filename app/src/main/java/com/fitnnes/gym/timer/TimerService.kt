@@ -13,6 +13,7 @@ import com.fitnnes.gym.data.WorkoutSession
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExercisePlan
 import com.fitnnes.gym.workoutdomain.MediaType
+import com.fitnnes.gym.workoutdomain.MediaItem
 import com.fitnnes.gym.workoutdomain.PhaseType
 import java.util.Locale
 
@@ -27,7 +28,8 @@ data class TimerStep(
     val label: String,
     val repetitions: Int? = null,
     val mediaUri: String? = null,
-    val mediaType: MediaType = MediaType.NONE
+    val mediaType: MediaType = MediaType.NONE,
+    val extraMedia: List<MediaItem> = emptyList()
 )
 
 data class TimerState(
@@ -53,7 +55,8 @@ data class TimerState(
     val repetitions: Int? = null,
     val stepNumber: Int = 1,
     val stepCount: Int = 1,
-    val exerciseRemaining: Int = 0
+    val exerciseRemaining: Int = 0,
+    val mediaItems: List<MediaItem> = emptyList()
 )
 
 interface TimerListener {
@@ -216,7 +219,8 @@ class TimerService : Service() {
                             label = interval.name.ifBlank { defaultLabel(phase) },
                             repetitions = interval.repetitions,
                             mediaUri = interval.mediaUri,
-                            mediaType = interval.mediaType
+                            mediaType = interval.mediaType,
+                        extraMedia = interval.extraMedia ?: emptyList()
                         )
                     )
                 }
@@ -529,6 +533,11 @@ class TimerService : Service() {
         val mediaUri = if (!stepMediaUri.isNullOrBlank()) stepMediaUri else ex?.mediaUri
         val mediaType = if (!stepMediaUri.isNullOrBlank()) step.mediaType else (ex?.mediaType ?: MediaType.NONE)
 
+        val items: List<MediaItem> = if (!stepMediaUri.isNullOrBlank() && step != null) {
+            listOf(MediaItem(stepMediaUri.orEmpty(), step.mediaType)) + step.extraMedia
+        } else {
+            ex?.allMedia() ?: emptyList()
+        }
         val hasPrev = stepIndex > 0 || currentExerciseIndex > 0
         val hasNext = stepIndex < steps.size - 1 || currentExerciseIndex < planExercises.size - 1
 
@@ -550,6 +559,7 @@ class TimerService : Service() {
             exerciseTotalTime = ex?.getTotalTime() ?: 0,
             mediaUri = mediaUri,
             mediaType = mediaType,
+            mediaItems = items,
             hasPreviousStep = hasPrev,
             hasNextStep = hasNext,
             repetitions = step?.repetitions,

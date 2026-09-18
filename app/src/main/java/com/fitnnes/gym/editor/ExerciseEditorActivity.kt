@@ -27,6 +27,7 @@ import com.fitnnes.gym.workoutdomain.CustomInterval
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExerciseType
 import com.fitnnes.gym.workoutdomain.MediaType
+import com.fitnnes.gym.workoutdomain.MediaItem
 import com.fitnnes.gym.workoutdomain.PhaseType
 
 class ExerciseEditorActivity : AppCompatActivity() {
@@ -202,10 +203,11 @@ class ExerciseEditorActivity : AppCompatActivity() {
             applyChipStyle(chipMedia, show)
         }
 
-        btnPickMedia.setOnClickListener { openMediaDialog() }
-        ivMediaPreview.setOnClickListener { openMediaDialog() }
+        btnPickMedia.setOnClickListener { openMediaListDialog() }
+        ivMediaPreview.setOnClickListener { openMediaListDialog() }
         btnRemoveMedia.setOnClickListener {
             exercise.mediaUri = null
+            exercise.extraMedia = emptyList()
             exercise.mediaType = MediaType.NONE
             updateMediaPreview()
         }
@@ -227,6 +229,51 @@ class ExerciseEditorActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnAddInterval).setOnClickListener { showIntervalDialog(-1, null) }
 
         btnDeleteExercise.setOnClickListener { confirmDelete() }
+    }
+
+    private fun openMediaListDialog() {
+        showMediaListDialog(exercise.allMedia()) { list ->
+            val first = list.firstOrNull()
+            exercise.mediaUri = first?.uri
+            exercise.mediaType = first?.type ?: MediaType.NONE
+            exercise.extraMedia = list.drop(1)
+            updateMediaPreview()
+        }
+    }
+
+    private fun showMediaListDialog(items: List<MediaItem>, onSave: (List<MediaItem>) -> Unit) {
+        val list = items.toMutableList()
+        val labels = list.mapIndexed { i, m ->
+            val kind = when (m.type) {
+                MediaType.IMAGE_BASE64 -> "Imagen"
+                MediaType.VIDEO_FILE -> "Video"
+                MediaType.YOUTUBE -> "YouTube"
+                MediaType.NONE -> "-"
+            }
+            "${i + 1}. $kind"
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Media (${list.size})")
+            .setItems(labels) { _, which ->
+                val cur = list[which]
+                mediaPickerDialog.show(cur.uri, cur.type) { uri, type ->
+                    if (uri.isNullOrBlank() || type == MediaType.NONE) list.removeAt(which)
+                    else list[which] = MediaItem(uri.orEmpty(), type)
+                    onSave(list)
+                    showMediaListDialog(list, onSave)
+                }
+            }
+            .setPositiveButton("Agregar") { _, _ ->
+                mediaPickerDialog.show(null, MediaType.NONE) { uri, type ->
+                    if (!uri.isNullOrBlank() && type != MediaType.NONE) {
+                        list.add(MediaItem(uri.orEmpty(), type))
+                        onSave(list)
+                    }
+                    showMediaListDialog(list, onSave)
+                }
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 
     private fun openMediaDialog() {
@@ -309,6 +356,7 @@ class ExerciseEditorActivity : AppCompatActivity() {
 
         var intervalMediaUri = existing?.mediaUri
         var intervalMediaType = existing?.mediaType ?: MediaType.NONE
+        var intervalExtra: List<MediaItem> = existing?.extraMedia ?: emptyList()
 
         fun refreshIntervalMediaIcon() {
             when {
@@ -337,8 +385,22 @@ class ExerciseEditorActivity : AppCompatActivity() {
                 refreshIntervalMediaIcon()
             }
         }
-        btnIntervalMedia.setOnClickListener { openIntervalMedia() }
-        ivIntervalMedia.setOnClickListener { openIntervalMedia() }
+        val openIntervalMediaList = {
+            val cur = mutableListOf<MediaItem>()
+            if (!intervalMediaUri.isNullOrBlank() && intervalMediaType != MediaType.NONE) {
+                cur.add(MediaItem(intervalMediaUri.orEmpty(), intervalMediaType))
+            }
+            cur.addAll(intervalExtra)
+            showMediaListDialog(cur) { list ->
+                val first = list.firstOrNull()
+                intervalMediaUri = first?.uri
+                intervalMediaType = first?.type ?: MediaType.NONE
+                intervalExtra = list.drop(1)
+                refreshIntervalMediaIcon()
+            }
+        }
+        btnIntervalMedia.setOnClickListener { openIntervalMediaList() }
+        ivIntervalMedia.setOnClickListener { openIntervalMediaList() }
 
         val phaseLabels = listOf(
             getString(R.string.prepare), getString(R.string.work),
@@ -368,7 +430,8 @@ class ExerciseEditorActivity : AppCompatActivity() {
                     phaseType = phase,
                     repetitions = reps,
                     mediaUri = intervalMediaUri,
-                    mediaType = intervalMediaType
+                    mediaType = intervalMediaType,
+                    extraMedia = intervalExtra
                 )
 
                 val list = intervalAdapter.currentList().toMutableList()
