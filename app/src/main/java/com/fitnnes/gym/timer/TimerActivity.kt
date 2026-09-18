@@ -576,6 +576,10 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private fun stopVideoPlayback() {
         runCatching { if (videoMedia.isPlaying) videoMedia.stopPlayback() }
             .onFailure { e -> Log.e(TAG, "Error deteniendo video", e) }
+        // FIX: ocultar webMedia (View.GONE) no detiene el audio del iframe de YouTube
+        // que sigue corriendo por dentro. Hay que forzar la navegación a blanco.
+        runCatching { webMedia.loadUrl("about:blank") }
+            .onFailure { e -> Log.e(TAG, "Error deteniendo YouTube webview", e) }
         currentVideoPlayer = null
     }
 
