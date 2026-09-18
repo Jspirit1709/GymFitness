@@ -50,7 +50,10 @@ data class TimerState(
     val mediaType: MediaType = MediaType.NONE,
     val hasPreviousStep: Boolean = false,
     val hasNextStep: Boolean = true,
-    val repetitions: Int? = null
+    val repetitions: Int? = null,
+    val stepNumber: Int = 1,
+    val stepCount: Int = 1,
+    val exerciseRemaining: Int = 0
 )
 
 interface TimerListener {
@@ -549,7 +552,10 @@ class TimerService : Service() {
             mediaType = mediaType,
             hasPreviousStep = hasPrev,
             hasNextStep = hasNext,
-            repetitions = step?.repetitions
+            repetitions = step?.repetitions,
+            stepNumber = stepIndex + 1,
+            stepCount = steps.size.coerceAtLeast(1),
+            exerciseRemaining = remainingTime + steps.drop(stepIndex + 1).sumOf { it.duration }
         )
     }
 

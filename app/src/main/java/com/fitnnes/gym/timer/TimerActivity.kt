@@ -260,12 +260,15 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
     private fun updateUI(state: TimerState) {
         tvExerciseName.text = state.currentExerciseName
         tvTimer.text = formatTime(state.currentTime)
-        tvRemainingSmall.text = formatTime(state.currentTime)
+        tvRemainingSmall.text = formatTime(state.exerciseRemaining)
+        val inPlan = state.planName != null
+        btnSkipStart.visibility = if (inPlan) View.VISIBLE else View.GONE
+        btnSkipEnd.visibility = if (inPlan) View.VISIBLE else View.GONE
         val repsText = state.repetitions?.let { "$it Rep." }
         tvReps.visibility = if (repsText != null) View.VISIBLE else View.GONE
         tvReps.text = repsText ?: ""
         tvMediaInfo.text = listOfNotNull(repsText, formatTime(state.currentTime)).joinToString("   ·   ")
-        tvSet.text = getString(R.string.set_format, state.currentRound, state.totalRounds)
+        tvSet.text = getString(R.string.set_format, state.stepNumber, state.stepCount)
 
         val phaseName = when (state.phase) {
             TimerPhase.PREPARE -> "Prepare"
