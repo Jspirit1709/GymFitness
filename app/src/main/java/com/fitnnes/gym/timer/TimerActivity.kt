@@ -194,7 +194,7 @@ class TimerActivity : AppCompatActivity(), ServiceConnection, TimerListener {
         btnSkipStart.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.skipToFirstExercise() }
         btnPrevious.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.previousStep() }
         btnNext.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.nextStep() }
-        btnSkipEnd.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.skipToLastExercise() }
+        btnSkipEnd.setOnClickListener { if (!controlsLocked && debounceNav()) timerService?.nextExercise() }
         btnStop.setOnClickListener { if (!controlsLocked) { timerService?.stopTimer(); goToMenu() } }
 
         btnLock.setOnClickListener {
