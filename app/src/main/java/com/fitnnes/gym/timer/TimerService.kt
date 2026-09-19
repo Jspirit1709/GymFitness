@@ -192,6 +192,14 @@ class TimerService : Service() {
     private fun loadCurrentExercise() {
         val ex = planExercises.getOrNull(currentExerciseIndex) ?: return finishTimer()
         steps = buildSteps(ex)
+        // DEBUG TEMPORAL: mostrar en pantalla que ejercicio carga y cuantos pasos detecto
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                this,
+                "DEBUG idx=$currentExerciseIndex '${ex.name}' pasos=${steps.size} custom=${ex.useCustomIntervals} seq=${ex.customSequence.size}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
         stepIndex = 0
         currentRound = 1
         totalRounds = if (ex.useCustomIntervals) ex.rounds else 1
