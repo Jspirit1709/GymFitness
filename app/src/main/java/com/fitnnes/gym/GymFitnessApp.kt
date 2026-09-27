@@ -9,6 +9,7 @@ class GymFitnessApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AppPrefs.init(this)
+        ManualWorkoutDays.init(this)
         Repository.init(this)
 
         AppCompatDelegate.setDefaultNightMode(

@@ -231,11 +231,11 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         for (day in 1..daysInMonth) {
             val daySessions = sessionsByDay[day].orEmpty()
             val isToday = isCurrentMonth && today.get(Calendar.DAY_OF_MONTH) == day
-            calendarGrid.addView(calendarDayCell(day, daySessions, isToday))
+            calendarGrid.addView(calendarDayCell(day, daySessions, isToday, year, month))
         }
     }
 
-    private fun calendarDayCell(day: Int?, sessions: List<WorkoutSession>, isToday: Boolean): View {
+    private fun calendarDayCell(day: Int?, sessions: List<WorkoutSession>, isToday: Boolean, year: Int = 0, month: Int = 0): View {
         val density = resources.displayMetrics.density
         val sizePx = (40 * density).toInt()
 
@@ -250,7 +250,8 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
 
         if (day == null) return cell
 
-        val marked = sessions.isNotEmpty()
+        val dateKey = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)
+        val marked = sessions.isNotEmpty() || ManualWorkoutDays.isMarked(dateKey)
         val circleSize = (30 * density).toInt()
         val background = View(requireContext()).apply {
             layoutParams = FrameLayout.LayoutParams(circleSize, circleSize, Gravity.CENTER)
@@ -278,10 +279,13 @@ class StatsFragment : Fragment(R.layout.fragment_stats) {
         cell.addView(background)
         cell.addView(label)
 
-        if (marked) {
-            cell.setOnClickListener {
+        cell.setOnClickListener {
+            if (sessions.isNotEmpty()) {
                 val names = sessions.joinToString(", ") { it.exerciseName }
                 Toast.makeText(requireContext(), names, Toast.LENGTH_SHORT).show()
+            } else {
+                ManualWorkoutDays.toggle(dateKey)
+                buildCalendar(monthOffset)
             }
         }
 
