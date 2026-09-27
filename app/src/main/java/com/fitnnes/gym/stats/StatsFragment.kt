@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.fitnnes.gym.R
 import com.fitnnes.gym.data.Repository
+import com.fitnnes.gym.data.ManualWorkoutDays
 import com.fitnnes.gym.data.WorkoutSession
 import com.fitnnes.gym.util.TimeFormat
 import com.fitnnes.gym.workoutdomain.Exercise

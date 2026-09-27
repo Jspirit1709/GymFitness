@@ -3,6 +3,7 @@ package com.fitnnes.gym
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import com.fitnnes.gym.data.AppPrefs
+import com.fitnnes.gym.data.ManualWorkoutDays
 import com.fitnnes.gym.data.Repository
 
 class GymFitnessApp : Application() {
