@@ -4,12 +4,14 @@ import com.google.gson.Gson
 import com.fitnnes.gym.workoutdomain.CustomInterval
 import com.fitnnes.gym.workoutdomain.Exercise
 import com.fitnnes.gym.workoutdomain.ExerciseType
+import com.fitnnes.gym.workoutdomain.MediaItem
 import com.fitnnes.gym.workoutdomain.MediaType
 import com.fitnnes.gym.workoutdomain.PhaseType
 import java.util.UUID
 
 data class ImportIntervalDto(
     val mediaId: String? = null,
+    val extraMediaIds: List<String>? = null,
     val name: String = "",
     val phaseType: Int = 1,
     val time: Int = 30,
@@ -21,6 +23,7 @@ data class ImportExerciseDto(
     val favourite: Boolean = false,
     val iterations: Int = 1,
     val mediaId: String? = null,
+    val extraMediaIds: List<String>? = null,
     val name: String = "Ejercicio importado",
     val prepareTime: Int = 10,
     val restTime: Int = 10,
@@ -91,12 +94,14 @@ object WorkoutImportExport {
         return null to MediaType.NONE
     }
 
-    /**
-     * Inverso de resolveMedia: a partir de (mediaUri, mediaType) tal como quedan guardados
-     * en Exercise/CustomInterval, arma el ImportMediaDto y lo agrega a la lista compartida
-     * de export, devolviendo el mediaId para referenciarlo desde el ejercicio o intervalo.
-     * Devuelve null si no hay media real que exportar.
-     */
+    private fun resolveExtraMedia(ids: List<String>?, mediaMap: Map<String, ImportMediaDto>): List<MediaItem> {
+        if (ids.isNullOrEmpty()) return emptyList()
+        return ids.mapNotNull { id ->
+            val (uri, type) = resolveMedia(id, mediaMap)
+            if (uri != null) MediaItem(uri, type) else null
+        }
+    }
+
     private fun addMediaAndGetId(
         uri: String?,
         type: MediaType,
@@ -114,7 +119,6 @@ object WorkoutImportExport {
                     val b64 = uri.substringAfter("base64,")
                     ImportMediaDto(id = id, encodedFile = b64, mimeType = mime.ifBlank { "image/jpeg" })
                 } else {
-                    // Ya viene como URI reproducible (content://, file://, http...), no como base64.
                     ImportMediaDto(id = id, sourceUri = uri)
                 }
             }
@@ -122,6 +126,14 @@ object WorkoutImportExport {
         }
         mediaList.add(dto)
         return id
+    }
+
+    private fun addExtraMediaAndGetIds(
+        items: List<MediaItem>,
+        mediaList: MutableList<ImportMediaDto>
+    ): List<String>? {
+        val ids = items.mapNotNull { addMediaAndGetId(it.uri, it.type, mediaList) }
+        return ids.ifEmpty { null }
     }
 
     private fun ImportExerciseDto.toExercise(mediaMap: Map<String, ImportMediaDto>): Exercise {
@@ -133,7 +145,8 @@ object WorkoutImportExport {
                 phaseType = PhaseType.values().getOrElse(interval.phaseType) { PhaseType.WORK },
                 repetitions = interval.manualRepetitions,
                 mediaUri = uri,
-                mediaType = type
+                mediaType = type,
+                extraMedia = resolveExtraMedia(interval.extraMediaIds, mediaMap)
             )
         } ?: emptyList()
 
@@ -150,7 +163,8 @@ object WorkoutImportExport {
             useCustomIntervals = sequence.isNotEmpty(),
             customSequence = sequence,
             mediaUri = exerciseUri,
-            mediaType = exerciseType
+            mediaType = exerciseType,
+            extraMedia = resolveExtraMedia(extraMediaIds, mediaMap)
         )
     }
 
@@ -159,6 +173,7 @@ object WorkoutImportExport {
             val intervalMediaId = addMediaAndGetId(interval.mediaUri, interval.mediaType, mediaList)
             ImportIntervalDto(
                 mediaId = intervalMediaId,
+                extraMediaIds = addExtraMediaAndGetIds(interval.extraMedia, mediaList),
                 name = interval.name,
                 phaseType = interval.phaseType.ordinal,
                 time = interval.time,
@@ -171,6 +186,7 @@ object WorkoutImportExport {
             favourite = favourite,
             iterations = iterations,
             mediaId = exerciseMediaId,
+            extraMediaIds = addExtraMediaAndGetIds(extraMedia, mediaList),
             name = name,
             prepareTime = prepareTime,
             restTime = restTime,
